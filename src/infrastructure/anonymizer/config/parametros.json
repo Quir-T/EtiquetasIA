@@ -1,0 +1,77 @@
+{
+  "comentario": "Parámetros de comportamiento del anonimizador. Evita hardcodear reglas en anon.py.",
+  "labels_validas": [
+    "PER",
+    "ORG"
+  ],
+  "min_longitud_per": 3,
+  "rechazar_todo_minusculas": true,
+  "contextos_persona": [
+    "paciente",
+    "dr.",
+    "dra.",
+    "médico",
+    "médica",
+    "lic.",
+    "enfermero",
+    "firma",
+    "responsable"
+  ],
+  "terminos_org_validos": [
+    "hospital",
+    "clínica",
+    "sanatorio",
+    "instituto",
+    "consultorio",
+    "centro"
+  ],
+  "terminos_medicos_excluir": [
+    "wirsung",
+    "coledoco",
+    "madre",
+    "padre",
+    "hija",
+    "hijo",
+    "hermana",
+    "hermano",
+    "tía",
+    "tío",
+    "abuela",
+    "abuelo"
+  ],
+  "terminos_per_excluir": [
+    "servicio",
+    "sector",
+    "sala",
+    "guardia",
+    "hospitalizacion",
+    "hospitalización",
+    "domiciliaria",
+    "domiciliario",
+    "pediatria",
+    "pediatría",
+    "cirugia",
+    "cirugía",
+    "coloproctologia",
+    "coloproctología",
+    "neurologia",
+    "neurología",
+    "bultoma",
+    "bultomas",
+    "rostro",
+    "cuello",
+    "submaxilar",
+    "izquierdo",
+    "izquierda",
+    "derecho",
+    "derecha",
+    "cardiacos",
+    "cardíacos",
+    "normofoneticos",
+    "normofonéticos"
+  ],
+  "stats_exclusion": {
+    "min_detectadas": 5,
+    "max_aceptadas_para_autoexcluir": 1
+  }
+}

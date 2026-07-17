@@ -1,0 +1,19 @@
+{
+  "comentario": "Palabras a anonimizar obligatoriamente con etiqueta personalizada",
+  "palabras": {
+    "Dr. García": "PER",
+    "Dr. García López": "PER",
+    "María López": "PER",
+    "Juan Pérez": "PER",
+    "Carlos Ruiz": "PER",
+    "Hospital San Rafael": "ORG",
+    "Hospital Central": "ORG",
+    "Clínica Privada": "ORG",
+    "Centro Médico": "ORG",
+    "Madrid": "LOC",
+    "Barcelona": "LOC",
+    "Valencia": "LOC",
+    "Hospital": "ORG",
+    "IREL": "ORG"
+  }
+}

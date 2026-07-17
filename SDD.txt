@@ -1,0 +1,350 @@
+================================================================================
+                  SPECIFICATION DRIVEN DEVELOPMENT (SDD)
+          API DE ANONIMIZACION + EXTRACCION DE ETIQUETAS
+================================================================================
+
+Fecha: 2026-07-16
+Version: 1.2.0
+Autor: Tomás Quiroga
+Entorno de destino: Local (Docker Compose)
+Estado: implementado y alineado con el codigo
+
+================================================================================
+1. OBJETIVO Y ALCANCE
+================================================================================
+
+1.1 Proposito
+Desarrollar una API REST que:
+- anonimize texto clinico,
+- procese anamnesis contra un proveedor NLP configurable,
+- persista resultados clinicos y trazabilidad operativa de forma inmutable.
+
+1.2 Alcance definido
+- Consumidor: sistema PHP interno (legacy).
+- Integracion: HTTP JSON con API Key.
+- Volumen objetivo: bajo/medio (<10 req/s).
+- Entorno soportado en este documento: Docker Compose local.
+
+
+================================================================================
+2. STACK DEL PROYECTO
+================================================================================
+
+2.1 Backend
+- FastAPI
+- Pydantic v2
+- SQLAlchemy 2
+- Alembic
+- PostgreSQL 15
+
+2.2 Dependencias principales (requirements.txt)
+- fastapi==0.115.6
+- uvicorn[standard]==0.34.0
+- pydantic==2.10.4
+- pydantic-settings==2.7.1
+- SQLAlchemy==2.0.36
+- psycopg[binary]==3.2.4
+- alembic==1.14.0
+- python-dotenv==1.0.1
+- httpx==0.28.1
+- spacy==3.8.2
+
+2.3 Servicios Docker
+- api
+- postgres
+
+================================================================================
+3. ARQUITECTURA LOGICA
+================================================================================
+
+Capas:
+- API: routers, schemas, seguridad, handlers.
+- Application: orquestacion de casos de uso.
+- Domain: entidades, interfaces y excepciones.
+- Infrastructure: repositorio PostgreSQL, proveedores NLP, adapter de anonymizer, carga de catalogo.
+
+Proveedor NLP configurable por entorno:
+- google
+- qwen
+
+================================================================================
+4. CONTRATO API
+================================================================================
+
+Base path versionada:
+- /api/v1
+
+Seguridad:
+- Header obligatorio: X-API-Key (excepto endpoints health)
+
+4.1 POST /api/v1/anamnesis/anonymize
+Request:
+{
+  "patient_id": 12345,
+  "doctor_id": 678,
+  "text": "..."
+}
+Response 200:
+{
+  "process_id": "uuid",
+  "patient_id": 12345,
+  "doctor_id": 678,
+  "anonymized_text": "..."
+}
+
+4.2 POST /api/v1/anamnesis/process
+Request:
+{
+  "patient_id": 12345,
+  "doctor_id": 678,
+  "text": "...",
+  "request_source": "legacy_php"
+}
+Response 200:
+{
+  "process_id": "uuid",
+  "created_at": "2026-07-16T10:24:31Z",
+  "hallazgos": [
+    {"etiqueta": "...", "descripcion": "..."}
+  ],
+  "processing_ms": 3200
+}
+
+Nota:
+- El campo text se valida contra MAX_TEXT_LENGTH configurado en entorno y se normaliza con strip antes de procesar.
+
+4.2.1 Documentacion OpenAPI
+- /docs
+- /openapi.json
+- FastAPI expone esta documentacion de forma automatica en el servicio.
+
+4.3 GET /api/v1/anamnesis/process/{process_id}
+Response 200:
+{
+  "process_id": "uuid",
+  "patient_id": 12345,
+  "doctor_id": 678,
+  "anonymized_text": "...",
+  "hallazgos": [
+    {"etiqueta": "...", "descripcion": "..."}
+  ],
+  "status": "success",
+  "created_at": "2026-07-16T10:24:31Z"
+}
+Nota:
+- Este endpoint no expone error_code, error_message ni processing_ms.
+- Esos campos operativos se consultan por endpoints de auditoria.
+
+4.4 GET /api/v1/catalog/labels
+Response 200:
+{
+  "version": "v1",
+  "labels": [{"name": "...", "description": "..."}],
+  "last_updated": "2026-06-30T00:00:00Z"
+}
+
+4.5 GET /api/v1/audit/events
+Response 200:
+{
+  "items": [
+    {
+      "audit_id": "uuid",
+      "process_id": "uuid",
+      "action": "process_anamnesis",
+      "status": "success",
+      "error_code": null,
+      "error_message": null,
+      "processing_ms": 3200,
+      "prompt_version": "v1",
+      "labels_catalog_version": "v1",
+      "provider": "google|qwen",
+      "provider_model": "...",
+      "metadata_json": {"text_length": 1500},
+      "created_at": "2026-07-16T10:24:31Z"
+    }
+  ],
+  "page": 1,
+  "page_size": 20,
+  "total": 1,
+  "total_pages": 1,
+  "has_next": false,
+  "has_prev": false
+}
+
+4.6 GET /api/v1/audit/processes/{process_id}
+- Devuelve el registro de auditoria asociado al process_id.
+
+4.7 GET /health/live
+Response 200:
+{
+  "status": "ok"
+}
+
+4.8 GET /health
+Response 200/503:
+{
+  "status": "healthy|degraded",
+  "database": "ok|error",
+  "nlp_provider": "ok|error",
+  "timestamp": "2026-07-16T10:24:31Z"
+}
+
+Nota:
+- Los endpoints de salud viven en la raiz del servicio, fuera de /api/v1.
+
+4.9 Codigos HTTP relevantes
+- 200 OK
+- 400 Bad Request
+- 401 Unauthorized
+- 404 Not Found
+- 408 Request Timeout
+- 502 Bad Gateway
+- 503 Service Unavailable
+- 500 Internal Server Error
+
+================================================================================
+5. MODELO DE DATOS
+================================================================================
+
+5.1 Tabla anamnesis_processing_events (clinica/funcional)
+- process_id VARCHAR(36) PK NOT NULL
+- patient_id INTEGER NOT NULL (index)
+- doctor_id INTEGER NOT NULL (index)
+- anonymized_text TEXT NOT NULL
+- labels_json JSONB NOT NULL
+- status ENUM process_status_enum NOT NULL DEFAULT 'success'
+  valores: success, provider_error, validation_error, timeout
+- created_at TIMESTAMPTZ NOT NULL DEFAULT now() (index)
+
+5.2 Tabla anamnesis_processing_audit (operativa)
+- audit_id VARCHAR(36) PK NOT NULL
+- process_id VARCHAR(36) NOT NULL UNIQUE (FK -> events.process_id)
+- action VARCHAR(50) NOT NULL
+- status VARCHAR(30) NOT NULL
+- error_code VARCHAR(50) NULL
+- error_message TEXT NULL
+- processing_ms INTEGER NOT NULL CHECK (processing_ms >= 0)
+- prompt_version VARCHAR(50) NOT NULL
+- labels_catalog_version VARCHAR(50) NOT NULL
+- provider VARCHAR(30) NOT NULL
+- provider_model VARCHAR(80) NULL
+- metadata_json JSONB NOT NULL
+- created_at TIMESTAMPTZ NOT NULL DEFAULT now() (index)
+
+5.3 Cardinalidad
+- events -> audit: 1:1 por restriccion UNIQUE en audit.process_id.
+
+================================================================================
+6. INMUTABILIDAD Y AUDITORIA
+================================================================================
+
+6.1 Politica
+- Persistencia append-only en tablas principales.
+- Sin endpoints de update/delete.
+
+6.2 Refuerzo en DB
+- Funcion: prevent_row_modification()
+- Trigger en events: BEFORE UPDATE OR DELETE -> exception
+- Trigger en audit: BEFORE UPDATE OR DELETE -> exception
+
+================================================================================
+7. MIGRACIONES (ALEMBIC)
+================================================================================
+
+Estado de historial:
+- 001_initial_schema
+
+La migracion inicial incluye:
+- creacion de ambas tablas,
+- FK audit.process_id -> events.process_id,
+- UNIQUE en audit.process_id (1:1),
+- indices principales,
+- triggers de inmutabilidad.
+
+Ejecucion en runtime:
+- El entrypoint del contenedor api corre alembic upgrade head con reintentos.
+
+================================================================================
+8. CONFIGURACION RELEVANTE (ENV)
+================================================================================
+
+8.1 Aplicacion
+- APP_NAME
+- LOG_LEVEL
+- API_KEY
+- CORS_ORIGINS
+- MAX_TEXT_LENGTH
+- NLP_PROVIDER_TIMEOUT_SECONDS
+- PROMPT_VERSION
+
+Nota:
+- MAX_TEXT_LENGTH gobierna tanto la validacion de request como el limite de procesamiento en la capa de servicio.
+
+8.2 Base de datos
+- DATABASE_DSN
+- DB_SSL_MODE
+- DB_SSL_CA
+- DB_SSL_CERT
+- DB_SSL_KEY
+
+8.3 Proveedor NLP
+- NLP_PROVIDER=google|qwen
+- GOOGLE_NLP_ENDPOINT
+- GOOGLE_NLP_MODEL
+- GOOGLE_API_KEY
+- GOOGLE_NLP_MAX_RETRIES
+- GOOGLE_NLP_BASE_BACKOFF_SECONDS
+- GOOGLE_NLP_MAX_BACKOFF_SECONDS
+- QWEN_NLP_ENDPOINT
+- QWEN_NLP_MODEL
+- QWEN_API_KEY
+
+8.4 Anonymizer
+- ANONYMIZER_MODULE
+- ANONYMIZER_CLASS
+
+================================================================================
+9. OPERACION (DOCKER COMPOSE)
+================================================================================
+
+9.1 Arranque
+- docker compose up -d --build
+
+9.2 Estado
+- docker compose ps
+
+9.3 Logs
+- docker compose logs -f
+- docker compose logs -f api
+- docker compose logs -f postgres
+
+9.4 Reinicio y limpieza
+- docker compose restart api
+- docker compose down
+- docker compose down -v  (elimina volumen de postgres)
+
+================================================================================
+10. LIMITACIONES Y NOTAS
+================================================================================
+
+- El documento describe solo lo que existe hoy en el repositorio.
+- No incluye planes futuros no implementados como parte de la especificacion principal.
+- Si cambia el contrato de endpoints o schema, este archivo debe actualizarse en el mismo PR.
+
+================================================================================
+11. CHANGELOG
+================================================================================
+
+v1.2.0 - 2026-07-16
+- SDD reescrito y alineado con el codigo.
+- Eliminadas referencias a tecnologias no incluidas en esta version.
+- Contratos API incluidos (incluye GET process sin campos operativos).
+- Modelo de datos descripto con separacion events/audit y relacion 1:1.
+- Migraciones simplificadas a 001_initial_schema.
+
+v1.1.0 - 2026-07-07
+- Version previa as-built.
+
+================================================================================
+FIN DEL DOCUMENTO
+================================================================================

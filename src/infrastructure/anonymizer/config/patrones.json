@@ -1,0 +1,80 @@
+{
+  "comentario": "Patrones regex para detectar identificadores medicos argentinos y otros datos sensibles",
+  "patrones": [
+    {
+      "name": "dni_formato_puntos",
+      "label": "DNI",
+      "pattern": "\\b\\d{2}\\.\\d{3}\\.\\d{3}\\b"
+    },
+    {
+      "name": "dni_sin_puntos",
+      "label": "DNI",
+      "pattern": "\\b(?:DNI|Documento Nacional de Identidad)\\s*[:#\\- ]*\\s*(\\d{7,8})\\b"
+    },
+    {
+      "name": "matricula_nacional",
+      "label": "MN",
+      "pattern": "\\b(?:MN|M\\.N\\.|Matr[ií]cula Nacional(?:\\s*[Nn][º°]?)?)\\s*[:#Nº° ]*\\s*(\\d{1,3}(?:\\.\\d{3}){1,2}|\\d{4,7})\\b"
+    },
+    {
+      "name": "matricula_provincial",
+      "label": "MP",
+      "pattern": "\\b(?:MP|M\\.P\\.|Matr[ií]cula Provincial(?:\\s*[Nn][º°]?)?)\\s*[:#Nº° ]*\\s*(\\d{1,3}(?:\\.\\d{3}){1,2}|\\d{4,7})\\b"
+    },
+    {
+      "name": "cuil_cuit",
+      "label": "CUIL",
+      "pattern": "\\b(?:CUIL|CUIT)\\s*[:#\\- ]*\\s*(\\d{2}-?\\d{8}-?\\d)\\b"
+    },
+    {
+      "name": "historia_clinica",
+      "label": "HISTORIA_CLINICA",
+      "pattern": "\\b(?:Historia Cl[ií]nica|H\\.?C\\.?|Nro\\.? Historia Cl[ií]nica|N[º°]? Historia Cl[ií]nica)\\s*[:#\\- ]*\\s*(\\d{3,8})\\b"
+    },
+    {
+      "name": "numero_afiliado",
+      "label": "AFILIADO",
+      "pattern": "\\b(?:Afiliad[oa]|N[º°]?\\s*Afiliad[oa]|Nro\\.?\\s*Afiliad[oa]|Af\\.)\\s*[:#\\- ]*\\s*(\\d{4,10})\\b"
+    },
+    {
+      "name": "email",
+      "label": "EMAIL",
+      "pattern": "\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}\\b"
+    },
+    {
+      "name": "fecha_nacimiento",
+      "label": "FECHA_NACIMIENTO",
+      "pattern": "\\b(?:nacid[oa]\\s+el|fecha\\s+de\\s+nacimiento\\s*[:#-]?)\\s*(?:\\d{1,2}\\s+de\\s+[A-Za-záéíóúñ]+\\s+de\\s+\\d{4}|\\d{1,2}[/-]\\d{1,2}[/-]\\d{2,4})\\b"
+    },
+    {
+      "name": "fecha_atencion_consulta",
+      "label": "FECHA_ATENCION",
+      "pattern": "\\b(?:el\\s+d[ií]a|fecha\\s+de\\s+(?:atenci[oó]n|consulta)|atenci[oó]n\\s+del|consulta\\s+del)\\s*[:#-]?\\s*(?:\\d{1,2}\\s+de\\s+[A-Za-záéíóúñ]+\\s+de\\s+\\d{4}|\\d{1,2}[/-]\\d{1,2}[/-]\\d{2,4})\\b"
+    },
+    {
+      "name": "certificado_firma_digital",
+      "label": "CERT_FIRMA",
+      "pattern": "\\b(?:certificado\\s+de\\s+firma\\s+digital|firma\\s+digital)\\s*(?:[Nn](?:ro)?\\.?\\s*[º°]?)?\\s*[:# ]*\\s*(?:ARG-?\\d{6,12}|\\d{6,12})\\b"
+    },
+    {
+      "name": "direccion_ubicacion",
+      "label": "UBICACION",
+      "pattern": "\\b(?:domicilio|dirección|ubicación|av\\.?|avenida|calle|casa|piso)\\s+[^,\\n]+"
+    },
+    {
+      "name": "telefono",
+      "label": "TELEFONO",
+      "pattern": "(?:tel[eé]fonos?|tel(?:[eé]fono)?s?|phone|fono)\\s*[:#\\- ]*\\s*([0-9+()\\-\\s]{7,})|\\b[0-9]{3}[\\s\\-][0-9]{3}[\\s\\-][0-9]{4}\\b|\\b(?:\\+?54[\\s\\-]?)?[0-9]{10}\\b"
+    },
+    {
+      "name": "especialidad",
+      "label": "ESPECIALIDAD",
+      "pattern": "\\b(?:cardiolog[ií]a|oncolog[ií]a|pediatr[ií]a|neurolog[ií]a|ginecolog[ií]a|traumatolog[ií]a|dermatolog[ií]a|gastroenterolog[ií]a|oftalmolog[ií]a|endocrinolog[ií]a|cl[ií]nica m[eé]dica|medicina general|medicina familiar|salud mental)\\b"
+    },
+    {
+      "name": "titulo_profesional_nombre",
+      "label": "PER",
+      "pattern": "\\b(?:Dr\\.?|Dra\\.?|Prof\\.?|Profa\\.?|Lic\\.?|Ing\\.?|Arq\\.?)\\s+(?-i:[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+){0,2})"
+    }
+  ]
+}
