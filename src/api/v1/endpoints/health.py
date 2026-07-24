@@ -4,8 +4,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Response, status
 
-from src.api.deps import get_nlp_provider
-from src.config.settings import Settings, get_settings
+from src.api.deps import get_database_client, get_nlp_provider
 from src.domain.interfaces.nlp_provider import NLPProviderInterface
 from src.infrastructure.persistence.database import DatabaseClient
 from src.api.v1.schemas.response import HealthResponse
@@ -21,10 +20,9 @@ async def health_live() -> dict[str, str]:
 @router.get("/health", response_model=HealthResponse)
 async def health_ready(
     response: Response,
-    settings: Settings = Depends(get_settings),
+    database_client: DatabaseClient = Depends(get_database_client),
     nlp_provider: NLPProviderInterface = Depends(get_nlp_provider),
 ) -> HealthResponse:
-    database_client = DatabaseClient(settings=settings)
     database_status = "ok"
     nlp_status = "ok"
 

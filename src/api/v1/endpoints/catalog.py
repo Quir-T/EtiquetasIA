@@ -8,13 +8,13 @@ from fastapi import APIRouter, Depends
 
 from src.api.deps import get_labels_catalog_service
 from src.api.security import require_api_key
-from src.api.v1.schemas.response import CatalogLabelItem, CatalogResponse
+from src.api.v1.schemas.response import CatalogLabelItem, CatalogResponse, ErrorResponse
 from src.application.services.labels_catalog_service import LabelsCatalogService
 
 router = APIRouter(prefix="/catalog")
 
 
-@router.get("/labels", response_model=CatalogResponse)
+@router.get("/labels", response_model=CatalogResponse, responses={401: {"model": ErrorResponse}, 500: {"model": ErrorResponse}})
 async def get_labels_catalog(
     _: None = Depends(require_api_key),
     service: LabelsCatalogService = Depends(get_labels_catalog_service),

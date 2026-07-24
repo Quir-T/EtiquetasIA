@@ -44,8 +44,3 @@ class ProcessingTimeoutError(AppException):
 class NLPProviderError(AppException):
     http_status = 502
     error_code = "NLP_PROVIDER_ERROR"
-
-
-class ServiceUnavailableError(AppException):
-    http_status = 503
-    error_code = "SERVICE_UNAVAILABLE"

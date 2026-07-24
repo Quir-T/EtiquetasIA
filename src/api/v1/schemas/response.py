@@ -38,7 +38,7 @@ class GetProcessResponse(BaseModel):
 class ErrorResponse(BaseModel):
     error_code: str
     message: str
-    details: dict | None = None
+    details: Any | None = None
     process_id: str | None = None
 
 

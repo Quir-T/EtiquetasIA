@@ -8,29 +8,40 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from src.api.v1.schemas.response import ErrorResponse
 from src.shared.exceptions.app_exceptions import AppException
+
+
+def _error_payload(error_code: str, message: str, details: object = None, process_id: str | None = None) -> dict:
+    return ErrorResponse(
+        error_code=error_code,
+        message=message,
+        details=details,
+        process_id=process_id,
+    ).model_dump(exclude_none=False)
 
 
 async def app_exception_handler(request: Request, exc: AppException) -> JSONResponse:
     return JSONResponse(
         status_code=exc.http_status,
-        content={
-            "error_code": exc.error_code,
-            "message": exc.message,
-            "details": jsonable_encoder(exc.details),
-            "process_id": exc.process_id,
-        },
+        content=_error_payload(
+            error_code=exc.error_code,
+            message=exc.message,
+            details=jsonable_encoder(exc.details),
+            process_id=exc.process_id,
+        ),
     )
 
 
 async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
     return JSONResponse(
         status_code=400,
-        content={
-            "error_code": "VALIDATION_ERROR",
-            "message": "Request validation failed",
-            "details": jsonable_encoder(exc.errors()),
-        },
+        content=_error_payload(
+            error_code="VALIDATION_ERROR",
+            message="Request validation failed",
+            details=jsonable_encoder(exc.errors()),
+            process_id=None,
+        ),
     )
 
 
@@ -38,21 +49,22 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
     detail = exc.detail if isinstance(exc.detail, dict) else {"message": str(exc.detail)}
     return JSONResponse(
         status_code=exc.status_code,
-        content={
-            "error_code": detail.get("error_code", "HTTP_ERROR"),
-            "message": detail.get("message", "HTTP error"),
-            "details": jsonable_encoder(detail.get("details")),
-            "process_id": detail.get("process_id"),
-        },
+        content=_error_payload(
+            error_code=detail.get("error_code", "HTTP_ERROR"),
+            message=detail.get("message", "HTTP error"),
+            details=jsonable_encoder(detail.get("details")),
+            process_id=detail.get("process_id"),
+        ),
     )
 
 
 async def generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     return JSONResponse(
         status_code=500,
-        content={
-            "error_code": "INTERNAL_ERROR",
-            "message": "Internal server error",
-            "details": jsonable_encoder({"error": str(exc)}),
-        },
+        content=_error_payload(
+            error_code="INTERNAL_ERROR",
+            message="Internal server error",
+            details=jsonable_encoder({"error": str(exc)}),
+            process_id=None,
+        ),
     )

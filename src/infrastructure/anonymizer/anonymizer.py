@@ -9,8 +9,10 @@ from typing import Any
 
 import spacy
 
+from src.domain.interfaces.anonymizer import AnonymizerInterface
 
-class LegacySpacyAnonymizer:
+
+class LegacySpacyAnonymizer(AnonymizerInterface):
     """Anonimizador migrado desde el proyecto anterior.
 
     Contrato compatible con el adapter actual del proyecto:

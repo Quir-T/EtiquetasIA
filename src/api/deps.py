@@ -1,4 +1,4 @@
-"""Proveedores de dependencias de FastAPI que cachean y ensamblan servicios e infraestructura de la aplicacion."""
+"""Proveedores de dependencias de FastAPI que cachean y ensamblan casos de uso e infraestructura."""
 
 from __future__ import annotations
 
@@ -6,7 +6,12 @@ from functools import lru_cache
 
 from src.application.services.anamnesis_service import AnamnesisService
 from src.application.services.labels_catalog_service import LabelsCatalogService
-from src.config.settings import Settings, get_settings
+from src.application.use_cases.get_audit_event import GetAuditEventUseCase
+from src.application.use_cases.anonymize_text import AnonymizeTextUseCase
+from src.application.use_cases.list_audit_events import ListAuditEventsUseCase
+from src.application.use_cases.get_process import GetProcessUseCase
+from src.application.use_cases.process_anamnesis import ProcessAnamnesisUseCase
+from src.config.settings import get_settings
 from src.infrastructure.adapters.anonymizer_adapter import ModuleAnonymizerAdapter
 from src.infrastructure.config.labels_catalog_loader import build_default_labels_catalog_loader
 from src.infrastructure.persistence.database import DatabaseClient
@@ -54,13 +59,50 @@ def get_nlp_provider() -> NLPProviderInterface:
 @lru_cache
 
 def get_anamnesis_service() -> AnamnesisService:
+    return AnamnesisService(repository=get_anamnesis_repository())
+
+
+@lru_cache
+
+def get_process_anamnesis_use_case() -> ProcessAnamnesisUseCase:
     settings = get_settings()
-    return AnamnesisService(
+    return ProcessAnamnesisUseCase(
         anonymizer=get_anonymizer(),
         nlp_provider=get_nlp_provider(),
-        repository=get_anamnesis_repository(),
+        application_service=get_anamnesis_service(),
         labels_catalog_service=get_labels_catalog_service(),
         max_text_length=settings.max_text_length,
         nlp_provider_timeout_seconds=settings.nlp_provider_timeout_seconds,
         prompt_version=settings.prompt_version,
     )
+
+
+@lru_cache
+
+def get_anonymize_text_use_case() -> AnonymizeTextUseCase:
+    settings = get_settings()
+    return AnonymizeTextUseCase(
+        anonymizer=get_anonymizer(),
+        application_service=get_anamnesis_service(),
+        labels_catalog_service=get_labels_catalog_service(),
+        max_text_length=settings.max_text_length,
+        prompt_version=settings.prompt_version,
+    )
+
+
+@lru_cache
+
+def get_get_process_use_case() -> GetProcessUseCase:
+    return GetProcessUseCase(application_service=get_anamnesis_service())
+
+
+@lru_cache
+
+def get_list_audit_events_use_case() -> ListAuditEventsUseCase:
+    return ListAuditEventsUseCase(repository=get_anamnesis_repository())
+
+
+@lru_cache
+
+def get_get_audit_event_use_case() -> GetAuditEventUseCase:
+    return GetAuditEventUseCase(repository=get_anamnesis_repository())

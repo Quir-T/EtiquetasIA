@@ -170,19 +170,6 @@ class QwenNLPProvider(NLPProviderInterface):
             if isinstance(parsed, dict) and isinstance(parsed.get("hallazgos"), list):
                 return self._normalize_hallazgos(parsed["hallazgos"])
 
-            if isinstance(parsed, dict) and isinstance(parsed.get("labels"), list):
-                return self._normalize_legacy_labels(parsed["labels"])
-
-            if isinstance(parsed, dict) and isinstance(parsed.get("tags"), list):
-                return self._normalize_tags(parsed["tags"])
-
-        # Fallback de ultimo recurso para salidas donde el modelo devuelve una estructura de tags tipo JSON
-        # envuelta en texto adicional que no puede parsearse como un unico objeto JSON.
-        for candidate_text in self._candidate_texts(response_json):
-            normalized_from_tags = self._normalize_tags_from_text(candidate_text)
-            if normalized_from_tags:
-                return normalized_from_tags
-
         return []
 
     def _candidate_texts(self, response_json: dict[str, Any]) -> list[str]:
@@ -234,43 +221,6 @@ class QwenNLPProvider(NLPProviderInterface):
                 continue
             etiqueta = str(hallazgo.get("etiqueta", "")).strip()
             descripcion = str(hallazgo.get("descripcion", "")).strip()
-            if not etiqueta or not descripcion:
-                continue
-            normalized.append({"etiqueta": etiqueta, "descripcion": descripcion})
-        return normalized
-
-    def _normalize_legacy_labels(self, labels: list[Any]) -> list[dict[str, Any]]:
-        normalized: list[dict[str, Any]] = []
-        for label in labels:
-            if not isinstance(label, dict):
-                continue
-            name = str(label.get("name", "")).strip()
-            if not name:
-                continue
-            normalized.append({"etiqueta": name, "descripcion": name})
-        return normalized
-
-    def _normalize_tags(self, tags: list[Any]) -> list[dict[str, Any]]:
-        normalized: list[dict[str, Any]] = []
-        for tag in tags:
-            if not isinstance(tag, dict):
-                continue
-            etiqueta = str(tag.get("etiqueta") or tag.get("tag") or "").strip()
-            descripcion = str(tag.get("descripcion") or tag.get("description") or "").strip()
-            if not etiqueta or not descripcion:
-                continue
-            normalized.append({"etiqueta": etiqueta, "descripcion": descripcion})
-        return normalized
-
-    def _normalize_tags_from_text(self, text: str) -> list[dict[str, Any]]:
-        cleaned_text = self._strip_model_wrappers(text)
-        if not cleaned_text:
-            return []
-        tags_matches = re.findall(r'\{\s*"tag"\s*:\s*"(.*?)"\s*,\s*"description"\s*:\s*"(.*?)"\s*\}', cleaned_text, flags=re.DOTALL)
-        normalized: list[dict[str, Any]] = []
-        for tag, description in tags_matches:
-            etiqueta = str(tag).strip()
-            descripcion = str(description).strip()
             if not etiqueta or not descripcion:
                 continue
             normalized.append({"etiqueta": etiqueta, "descripcion": descripcion})

@@ -33,9 +33,9 @@ La documentación interactiva de OpenAPI queda disponible en `/docs` y `/openapi
 Capas principales:
 
 - **API:** routers, schemas, seguridad, handlers de excepciones.
-- **Application:** servicios y casos de uso.
+- **Application:** casos de uso y helpers compartidos.
 - **Domain:** entidades, interfaces y excepciones de dominio.
-- **Infrastructure:** repositorio PostgreSQL, proveedor NLP, adapter de anonymizer, loader de catálogo.
+- **Infrastructure:** repositorio PostgreSQL, proveedores NLP, adapter de anonymizer, loader de catálogo.
 
 Persistencia:
 
@@ -53,6 +53,12 @@ Inmutabilidad:
 - Triggers en DB bloquean `UPDATE/DELETE` en ambas tablas.
 
 ## Contrato
+
+Convenciones de datos:
+
+- El shape canónico de extracción es `{"hallazgos": [...]}`.
+- La clave `labels` fue retirada del flujo de aplicación y de los proveedores.
+- `labels_catalog_service` sigue siendo el punto único para validar hallazgos contra el catálogo cerrado.
 
 ### POST /api/v1/anamnesis/process
 
@@ -177,6 +183,11 @@ Notas:
 - `ANONYMIZER_MODULE`
 - `ANONYMIZER_CLASS`
 
+Notas operativas:
+
+- El adapter carga e instancia el anonymizer configurado una sola vez por proceso de API.
+- En el caso de `LegacySpacyAnonymizer`, el modelo `es_core_news_lg` y los JSON de configuracion se reutilizan entre requests; no se recargan en cada llamada.
+
 ### Proveedor NLP
 
 - `GOOGLE_NLP_ENDPOINT`
@@ -211,6 +222,7 @@ curl -s "$BASE_URL/health"
 Nota:
 
 - Los endpoints de salud no usan el prefijo `/api/v1` y viven en la raíz del servicio.
+- `GET /health` puede responder `200` o `503` con el mismo schema `HealthResponse`, según el estado de DB y proveedor NLP.
 
 ### Catálogo
 
@@ -259,6 +271,10 @@ curl -s -H "X-API-Key: $API_KEY" \
   "$BASE_URL/api/v1/audit/events?page=1&page_size=20"
 ```
 
+Nota:
+
+- Si `page` excede el rango disponible, la API responde `400` con `AUDIT_PAGE_OUT_OF_RANGE`.
+
 ### Auditoría por process_id
 
 ```bash
@@ -288,6 +304,7 @@ La migración `001_initial_schema` crea:
 - tablas `anamnesis_processing_events` y `anamnesis_processing_audit`
 - FK `audit.process_id -> events.process_id`
 - restricción `UNIQUE` en `audit.process_id` para mantener cardinalidad 1:1
+- enum `process_status_enum` compartido por `events.status` y `audit.status`
 - índices principales en ambas tablas
 - triggers de inmutabilidad para bloquear `UPDATE/DELETE`
 
@@ -334,5 +351,7 @@ docker compose down -v
 ## Notas
 
 - El contenedor instala `es_core_news_lg` durante build.
+- El anonymizer legacy queda cacheado en memoria por proceso una vez resuelto por el adapter.
+- Los providers de dependencias de `src/api/deps.py` usan `@lru_cache`, por lo que repositorio, anonymizer, provider NLP y casos de uso se reutilizan por proceso.
 - Catálogo cargado desde `src/infrastructure/config/labels_catalog.json`.
 - Swagger/OpenAPI: `http://localhost:8000/docs`

@@ -199,10 +199,6 @@ class GoogleNLPProvider(NLPProviderInterface):
         if "hallazgos" in response_json and isinstance(response_json.get("hallazgos"), list):
             return self._normalize_hallazgos(response_json["hallazgos"])
 
-        if "labels" in response_json and isinstance(response_json.get("labels"), list):
-            # Compatibilidad hacia atras con la forma de respuesta del proveedor anterior.
-            return self._normalize_legacy_labels(response_json["labels"])
-
         candidate_text = self._extract_candidate_text(response_json)
         if not candidate_text:
             return []
@@ -211,9 +207,6 @@ class GoogleNLPProvider(NLPProviderInterface):
         parsed = self._try_parse_json(candidate_text)
         if isinstance(parsed, dict) and isinstance(parsed.get("hallazgos"), list):
             return self._normalize_hallazgos(parsed["hallazgos"])
-
-        if isinstance(parsed, dict) and isinstance(parsed.get("labels"), list):
-            return self._normalize_legacy_labels(parsed["labels"])
         return []
 
     def _extract_candidate_text(self, response_json: dict[str, Any]) -> str:
@@ -251,15 +244,4 @@ class GoogleNLPProvider(NLPProviderInterface):
             if not etiqueta or not descripcion:
                 continue
             normalized.append({"etiqueta": etiqueta, "descripcion": descripcion})
-        return normalized
-
-    def _normalize_legacy_labels(self, labels: list[Any]) -> list[dict[str, Any]]:
-        normalized: list[dict[str, Any]] = []
-        for label in labels:
-            if not isinstance(label, dict):
-                continue
-            name = str(label.get("name", "")).strip()
-            if not name:
-                continue
-            normalized.append({"etiqueta": name, "descripcion": ""})
         return normalized

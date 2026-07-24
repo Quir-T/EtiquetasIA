@@ -6,23 +6,33 @@ import math
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from src.api.deps import get_anamnesis_repository
+from src.api.deps import get_get_audit_event_use_case, get_list_audit_events_use_case
 from src.api.security import require_api_key
-from src.api.v1.schemas.response import AuditEventItem, AuditEventsPageResponse
-from src.infrastructure.persistence.postgres_repository import PostgresAnamnesisRepository
+from src.api.v1.schemas.response import AuditEventItem, AuditEventsPageResponse, ErrorResponse
+from src.application.use_cases.get_audit_event import GetAuditEventUseCase
+from src.application.use_cases.list_audit_events import ListAuditEventsUseCase
 
 router = APIRouter(prefix="/audit")
 
 
-@router.get("/events", response_model=AuditEventsPageResponse)
+@router.get("/events", response_model=AuditEventsPageResponse, responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}})
 async def get_audit_events(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     _: None = Depends(require_api_key),
-    repository: PostgresAnamnesisRepository = Depends(get_anamnesis_repository),
+    use_case: ListAuditEventsUseCase = Depends(get_list_audit_events_use_case),
 ) -> AuditEventsPageResponse:
-    items, total = repository.list_audit_events(page=page, page_size=page_size)
+    items, total = use_case.execute(page=page, page_size=page_size)
     total_pages = math.ceil(total / page_size) if total > 0 else 0
+    if (total == 0 and page > 1) or (total > 0 and page > total_pages):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ErrorResponse(
+                error_code="AUDIT_PAGE_OUT_OF_RANGE",
+                message=f"Page {page} is out of range for audit events",
+                details={"page": page, "page_size": page_size, "total_pages": total_pages, "total": total},
+            ).model_dump(exclude_none=False),
+        )
     return AuditEventsPageResponse(
         items=items,
         page=page,
@@ -34,19 +44,20 @@ async def get_audit_events(
     )
 
 
-@router.get("/processes/{process_id}", response_model=AuditEventItem)
+@router.get("/processes/{process_id}", response_model=AuditEventItem, responses={404: {"model": ErrorResponse}})
 async def get_audit_event_by_process_id(
     process_id: str,
     _: None = Depends(require_api_key),
-    repository: PostgresAnamnesisRepository = Depends(get_anamnesis_repository),
+    use_case: GetAuditEventUseCase = Depends(get_get_audit_event_use_case),
 ) -> AuditEventItem:
-    item = repository.get_audit_event_by_process_id(process_id=process_id)
+    item = use_case.execute(process_id=process_id)
     if item is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail={
-                "error_code": "AUDIT_NOT_FOUND",
-                "message": f"Audit record for process {process_id} not found",
-            },
+            detail=ErrorResponse(
+                error_code="AUDIT_NOT_FOUND",
+                message=f"Audit record for process {process_id} not found",
+                process_id=process_id,
+            ).model_dump(exclude_none=False),
         )
     return AuditEventItem(**item)

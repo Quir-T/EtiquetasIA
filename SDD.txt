@@ -59,7 +59,7 @@ Desarrollar una API REST que:
 
 Capas:
 - API: routers, schemas, seguridad, handlers.
-- Application: orquestacion de casos de uso.
+- Application: casos de uso y helpers compartidos.
 - Domain: entidades, interfaces y excepciones.
 - Infrastructure: repositorio PostgreSQL, proveedores NLP, adapter de anonymizer, carga de catalogo.
 
@@ -171,6 +171,9 @@ Response 200:
   "has_prev": false
 }
 
+Regla de paginacion:
+- Si `page` excede el rango disponible, responder 400 con `AUDIT_PAGE_OUT_OF_RANGE`.
+
 4.6 GET /api/v1/audit/processes/{process_id}
 - Devuelve el registro de auditoria asociado al process_id.
 
@@ -191,6 +194,7 @@ Response 200/503:
 
 Nota:
 - Los endpoints de salud viven en la raiz del servicio, fuera de /api/v1.
+- `GET /health` mantiene el mismo schema de respuesta para 200 y 503; el 503 indica degradacion operacional, no un payload de error alternativo.
 
 4.9 Codigos HTTP relevantes
 - 200 OK
@@ -211,7 +215,7 @@ Nota:
 - patient_id INTEGER NOT NULL (index)
 - doctor_id INTEGER NOT NULL (index)
 - anonymized_text TEXT NOT NULL
-- labels_json JSONB NOT NULL
+- labels_json JSONB NOT NULL (shape canónico: {"hallazgos": [...]})
 - status ENUM process_status_enum NOT NULL DEFAULT 'success'
   valores: success, provider_error, validation_error, timeout
 - created_at TIMESTAMPTZ NOT NULL DEFAULT now() (index)
@@ -220,7 +224,7 @@ Nota:
 - audit_id VARCHAR(36) PK NOT NULL
 - process_id VARCHAR(36) NOT NULL UNIQUE (FK -> events.process_id)
 - action VARCHAR(50) NOT NULL
-- status VARCHAR(30) NOT NULL
+- status ENUM process_status_enum NOT NULL DEFAULT 'success'
 - error_code VARCHAR(50) NULL
 - error_message TEXT NULL
 - processing_ms INTEGER NOT NULL CHECK (processing_ms >= 0)
@@ -256,6 +260,7 @@ Estado de historial:
 
 La migracion inicial incluye:
 - creacion de ambas tablas,
+- enum `process_status_enum` compartido por `events.status` y `audit.status`,
 - FK audit.process_id -> events.process_id,
 - UNIQUE en audit.process_id (1:1),
 - indices principales,
@@ -302,6 +307,11 @@ Nota:
 8.4 Anonymizer
 - ANONYMIZER_MODULE
 - ANONYMIZER_CLASS
+- El adapter de anonymizer resuelve e instancia una sola implementacion por proceso.
+- Si la implementacion configurada es LegacySpacyAnonymizer, `es_core_news_lg` y la configuracion JSON quedan cacheados en memoria y se reutilizan entre requests.
+
+8.5 Cacheo de dependencias API
+- `src/api/deps.py` usa `@lru_cache` para reutilizar por proceso el repositorio, el anonymizer, el provider NLP y los casos de uso.
 
 ================================================================================
 9. OPERACION (DOCKER COMPOSE)

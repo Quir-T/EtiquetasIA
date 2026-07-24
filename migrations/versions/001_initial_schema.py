@@ -45,7 +45,7 @@ def upgrade() -> None:
         sa.Column("audit_id", sa.String(length=36), primary_key=True, nullable=False),
         sa.Column("process_id", sa.String(length=36), nullable=False, unique=True),
         sa.Column("action", sa.String(length=50), nullable=False),
-        sa.Column("status", sa.String(length=30), nullable=False),
+        sa.Column("status", process_status_enum, nullable=False, server_default=sa.text("'success'")),
         sa.Column("error_code", sa.String(length=50), nullable=True),
         sa.Column("error_message", sa.Text(), nullable=True),
         sa.Column("processing_ms", sa.Integer(), nullable=False),

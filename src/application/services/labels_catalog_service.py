@@ -21,16 +21,6 @@ class LabelsCatalogService:
     def get_catalog_version(self) -> str:
         return self.labels_catalog.get_catalog_version()
 
-    def validate_and_filter_labels(self, labels: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        allowed_labels = set(self.get_allowed_labels())
-        filtered_labels: list[dict[str, Any]] = []
-        for label in labels:
-            name = str(label.get("name", "")).strip()
-            if not name or name not in allowed_labels:
-                continue
-            filtered_labels.append({"name": name, "confidence": label.get("confidence")})
-        return filtered_labels
-
     def validate_and_filter_hallazgos(self, hallazgos: list[dict[str, Any]]) -> list[dict[str, str]]:
         allowed_labels = set(self.get_allowed_labels())
         filtered_hallazgos: list[dict[str, str]] = []
