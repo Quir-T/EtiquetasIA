@@ -11,7 +11,6 @@ from src.domain.exceptions.domain_exceptions import AnonymizationError
 from src.domain.interfaces.anonymizer import AnonymizerInterface
 from src.config.settings import Settings
 
-
 @dataclass(slots=True)
 class ModuleAnonymizerAdapter(AnonymizerInterface):
     """Adapter que carga y cachea la implementacion configurada de anonymizer.

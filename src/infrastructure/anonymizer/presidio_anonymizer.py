@@ -68,6 +68,8 @@ from presidio_analyzer.nlp_engine import NlpEngineProvider
 from presidio_analyzer.predefined_recognizers import SpacyRecognizer
 from presidio_anonymizer import AnonymizerEngine
 
+from src.domain.interfaces.anonymizer import AnonymizerInterface
+
 logger = logging.getLogger(__name__)
 
 
