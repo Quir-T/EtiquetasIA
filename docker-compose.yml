@@ -6,7 +6,7 @@ services:
     env_file:
       - .env
     ports:
-      - "8000:8000"
+      - "8888:8888"
     command: ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--reload-dir", "/app/src"]
     volumes:
       - ./src:/app/src:ro
@@ -19,7 +19,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '2.0'
+          cpus: '4.0'
           memory: '4G'
         reservations:
           cpus: '0.5'

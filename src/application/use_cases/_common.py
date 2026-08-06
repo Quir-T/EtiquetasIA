@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from time import perf_counter
@@ -23,10 +24,16 @@ class ExecutionContext:
     catalog_version: str
 
 
+def sanitize_input_text(text: str) -> str:
+    sanitized = re.sub(r"[\r\n\t\f\v]+", " ", text)
+    sanitized = re.sub(r"[\x00-\x1F\x7F]+", " ", sanitized)
+    return " ".join(sanitized.split())
+
+
 def build_execution_context(text: str, labels_catalog_service: LabelsCatalogService) -> ExecutionContext:
     return ExecutionContext(
         process_id=str(uuid4()),
-        normalized_text=text.strip(),
+        normalized_text=sanitize_input_text(text),
         started_at=perf_counter(),
         created_at=datetime.now(timezone.utc),
         catalog_version=labels_catalog_service.get_catalog_version(),
