@@ -26,7 +26,6 @@ class AnonymizeTextUseCase:
         patient_id: int,
         doctor_id: int,
         text: str,
-        request_source: str | None = None,
     ) -> AnamnesisEvent:
         context = build_execution_context(text, self.labels_catalog_service)
         normalized_text = validate_text_or_raise(
@@ -70,7 +69,6 @@ class AnonymizeTextUseCase:
             provider_model=None,
             labels_json={
                 "hallazgos": [],
-                "request_source": request_source,
                 "operation": "anonymize_only",
             },
             status=ProcessStatus.SUCCESS,

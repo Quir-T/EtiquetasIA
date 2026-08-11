@@ -17,9 +17,12 @@ from src.domain.interfaces.nlp_provider import NLPProviderInterface
 
 @dataclass(slots=True)
 class QwenNLPProvider(NLPProviderInterface):
+    """Proveedor de NLP basado en Ollama/Qwen para extracción de etiquetas clínicas."""
+
     settings: Settings
 
     def extract_labels(self, anonymized_text: str, prompt_version: str, allowed_labels: list[str], timeout_seconds: int = 10) -> dict[str, Any]:
+        """Envía el texto anonimizado al endpoint local y devuelve hallazgos normalizados."""
         if not self.settings.qwen_nlp_endpoint:
             raise ProviderError("Qwen NLP endpoint is not configured")
         if not self.settings.qwen_nlp_model:
@@ -98,6 +101,7 @@ class QwenNLPProvider(NLPProviderInterface):
         return "No details returned by provider"
 
     def _build_payload(self, anonymized_text: str, allowed_labels: list[str]) -> dict[str, Any]:
+        """Construye el payload con el prompt y las etiquetas válidas para Qwen."""
         allowed_block = "\n".join(allowed_labels)
         prompt = (
             "# PROMPT: Extraccion estructurada de antecedentes clinicos desde anamnesis\n\n"

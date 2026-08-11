@@ -22,6 +22,12 @@ async def get_audit_events(
     _: None = Depends(require_api_key),
     use_case: ListAuditEventsUseCase = Depends(get_list_audit_events_use_case),
 ) -> AuditEventsPageResponse:
+    """Lista registros de auditoría con límites de paginación validados.
+
+    Comportamiento relevante para QA:
+    - page y page_size están acotados a nivel de validación de request.
+    - las páginas fuera de rango devuelven un HTTP 400 estructurado.
+    """
     items, total = use_case.execute(page=page, page_size=page_size)
     total_pages = math.ceil(total / page_size) if total > 0 else 0
     if (total == 0 and page > 1) or (total > 0 and page > total_pages):
@@ -50,6 +56,11 @@ async def get_audit_event_by_process_id(
     _: None = Depends(require_api_key),
     use_case: GetAuditEventUseCase = Depends(get_get_audit_event_use_case),
 ) -> AuditEventItem:
+    """Devuelve un registro de auditoría asociado a un identificador de proceso.
+
+    Si no existe registro, este endpoint emite un payload HTTP 404 tipado con
+    AUDIT_NOT_FOUND para aserciones de prueba deterministas.
+    """
     item = use_case.execute(process_id=process_id)
     if item is None:
         raise HTTPException(

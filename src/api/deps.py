@@ -24,12 +24,14 @@ from src.infrastructure.providers.qwen_nlp_provider import QwenNLPProvider
 @lru_cache
 
 def get_database_client() -> DatabaseClient:
+    """Crea un cliente de base de datos reutilizable por toda la app."""
     return DatabaseClient(settings=get_settings())
 
 
 @lru_cache
 
 def get_anamnesis_repository() -> PostgresAnamnesisRepository:
+    """Ensambla el repositorio persistente usado por casos de uso y servicios."""
     database_client = get_database_client()
     engine = database_client.create_engine()
     return PostgresAnamnesisRepository(engine=engine)
@@ -50,6 +52,7 @@ def get_anonymizer() -> ModuleAnonymizerAdapter:
 @lru_cache
 
 def get_nlp_provider() -> NLPProviderInterface:
+    """Selecciona el proveedor de NLP activo según la configuración del entorno."""
     settings = get_settings()
     if settings.nlp_provider == "qwen":
         return QwenNLPProvider(settings=settings)
@@ -65,6 +68,7 @@ def get_anamnesis_service() -> AnamnesisService:
 @lru_cache
 
 def get_process_anamnesis_use_case() -> ProcessAnamnesisUseCase:
+    """Compone el use case principal del flujo de procesamiento de anamnesis."""
     settings = get_settings()
     return ProcessAnamnesisUseCase(
         anonymizer=get_anonymizer(),
@@ -80,6 +84,7 @@ def get_process_anamnesis_use_case() -> ProcessAnamnesisUseCase:
 @lru_cache
 
 def get_anonymize_text_use_case() -> AnonymizeTextUseCase:
+    """Compone el use case de anonimización simple para endpoints de texto."""
     settings = get_settings()
     return AnonymizeTextUseCase(
         anonymizer=get_anonymizer(),

@@ -31,12 +31,17 @@ async def anonymize_text(
     _: None = Depends(require_api_key),
     use_case: AnonymizeTextUseCase = Depends(get_anonymize_text_use_case),
 ) -> AnonymizeTextResponse:
+    """Crea texto anonimizado y persiste la traza del proceso.
+
+    Contrato del endpoint para QA:
+    - devuelve 200 con process_id y anonymized_text en caso de éxito.
+    - mapea los fallos de persistencia del repositorio a HTTP 500.
+    """
     try:
         event = use_case.execute(
             patient_id=payload.patient_id,
             doctor_id=payload.doctor_id,
             text=payload.text,
-            request_source="api_anonymize_only",
         )
     except PersistenceError as exc:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error_code": "INTERNAL_ERROR", "message": str(exc)}) from exc
@@ -65,12 +70,17 @@ async def process_anamnesis(
     _: None = Depends(require_api_key),
     use_case: ProcessAnamnesisUseCase = Depends(get_process_anamnesis_use_case),
 ) -> ProcessAnamnesisResponse:
+    """Ejecuta el pipeline completo: anonimización + extracción de etiquetas + persistencia.
+
+    Contrato del endpoint para QA:
+    - devuelve hallazgos normalizados a partir de labels_json.hallazgos.
+    - mapea los fallos de persistencia del repositorio a HTTP 500.
+    """
     try:
         event = use_case.execute(
             patient_id=payload.patient_id,
             doctor_id=payload.doctor_id,
             text=payload.text,
-            request_source=payload.request_source,
         )
     except PersistenceError as exc:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail={"error_code": "INTERNAL_ERROR", "message": str(exc)}) from exc
@@ -97,6 +107,11 @@ async def get_process(
     _: None = Depends(require_api_key),
     use_case: GetProcessUseCase = Depends(get_get_process_use_case),
 ) -> GetProcessResponse:
+    """Recupera un proceso persistido por process_id.
+
+    Levanta un error de dominio de no encontrado cuando el proceso no existe,
+    el cual es convertido por los handlers globales en un payload estándar 404.
+    """
     event = use_case.execute(process_id)
     if event is None:
         raise ProcessNotFoundError(f"Process {process_id} not found", process_id=process_id)

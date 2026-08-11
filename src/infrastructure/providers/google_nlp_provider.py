@@ -17,9 +17,12 @@ from src.config.settings import Settings
 
 @dataclass(slots=True)
 class GoogleNLPProvider(NLPProviderInterface):
+    """Proveedor de NLP basado en Google que construye prompts y normaliza respuestas JSON."""
+
     settings: Settings
 
     def extract_labels(self, anonymized_text: str, prompt_version: str, allowed_labels: list[str], timeout_seconds: int = 10) -> dict[str, Any]:
+        """Envía el texto anonimizado al endpoint de Google y devuelve hallazgos normalizados."""
         if not self.settings.google_nlp_endpoint:
             raise ProviderError("Google NLP endpoint is not configured")
         if not self.settings.google_api_key:
@@ -141,6 +144,7 @@ class GoogleNLPProvider(NLPProviderInterface):
             return False
 
     def _build_payload(self, anonymized_text: str, allowed_labels: list[str]) -> dict[str, Any]:
+        """Construye el payload con prompt y etiquetas válidas para la solicitud al proveedor."""
         allowed_block = "\n".join(allowed_labels)
         prompt = (
             "# PROMPT: Extraccion estructurada de antecedentes clinicos desde anamnesis\n\n"

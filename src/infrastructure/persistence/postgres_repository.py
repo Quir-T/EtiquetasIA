@@ -18,6 +18,8 @@ from src.infrastructure.persistence.models import AnamnesisAuditModel, Anamnesis
 
 @dataclass(slots=True)
 class PostgresAnamnesisRepository(AnamnesisRepositoryInterface):
+    """Repositorio PostgreSQL que persiste eventos y auditoría para el flujo de anamnesis."""
+
     engine: Engine
 
     def __post_init__(self) -> None:
@@ -90,6 +92,7 @@ class PostgresAnamnesisRepository(AnamnesisRepositoryInterface):
         }
 
     def save(self, event: AnamnesisEvent) -> AnamnesisEvent:
+        """Guarda el evento principal y su fila de auditoría en una transacción única."""
         try:
             with self._session_factory() as session:
                 model = self._to_model(event)
@@ -105,6 +108,7 @@ class PostgresAnamnesisRepository(AnamnesisRepositoryInterface):
             raise PersistenceError(str(exc)) from exc
 
     def get_by_process_id(self, process_id: str) -> Optional[AnamnesisEvent]:
+        """Recupera un proceso por su identificador estable si existe."""
         try:
             with self._session_factory() as session:
                 statement = select(AnamnesisEventModel).where(AnamnesisEventModel.process_id == process_id)
@@ -116,6 +120,7 @@ class PostgresAnamnesisRepository(AnamnesisRepositoryInterface):
             raise PersistenceError(str(exc)) from exc
 
     def list_audit_events(self, page: int, page_size: int) -> tuple[list[dict[str, Any]], int]:
+        """Devuelve páginas de auditoría con paginación y total de registros."""
         try:
             offset = (page - 1) * page_size
             with self._session_factory() as session:
@@ -134,6 +139,7 @@ class PostgresAnamnesisRepository(AnamnesisRepositoryInterface):
             raise PersistenceError(str(exc)) from exc
 
     def get_audit_event_by_process_id(self, process_id: str) -> dict[str, Any] | None:
+        """Busca la auditoría asociada a un proceso, si existe."""
         try:
             with self._session_factory() as session:
                 statement = (

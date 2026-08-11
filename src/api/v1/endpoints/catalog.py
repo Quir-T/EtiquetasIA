@@ -19,6 +19,7 @@ async def get_labels_catalog(
     _: None = Depends(require_api_key),
     service: LabelsCatalogService = Depends(get_labels_catalog_service),
 ) -> CatalogResponse:
+    """Expone el catálogo de etiquetas permitidas para validación de hallazgos."""
     catalog = service.get_catalog()
     raw_last_updated = catalog.get("last_updated")
     last_updated = datetime.fromisoformat(str(raw_last_updated).replace("Z", "+00:00")) if raw_last_updated else datetime.now(timezone.utc)
