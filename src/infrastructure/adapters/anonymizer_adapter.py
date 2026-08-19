@@ -11,9 +11,10 @@ from src.domain.exceptions.domain_exceptions import AnonymizationError
 from src.domain.interfaces.anonymizer import AnonymizerInterface
 from src.config.settings import Settings
 
+
 @dataclass(slots=True)
 class ModuleAnonymizerAdapter(AnonymizerInterface):
-    """Adapter que carga y cachea la implementacion configurada de anonymizer.
+    """Adapter que carga y cachea la implementación configurada de anonymizer.
 
     La clase configurada via ANONYMIZER_MODULE/ANONYMIZER_CLASS se instancia
     una sola vez -lazy, en el primer anonymize() que llega- y se reutiliza en
@@ -39,6 +40,7 @@ class ModuleAnonymizerAdapter(AnonymizerInterface):
     _lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False, compare=False)
 
     def anonymize(self, text: str) -> str:
+        """Delega la anonimización al implementador concreto, manteniendo el cache interno."""
         anonymizer = self._get_or_create_anonymizer()
         try:
             return anonymizer.anonymize(text)
@@ -46,6 +48,7 @@ class ModuleAnonymizerAdapter(AnonymizerInterface):
             raise AnonymizationError(str(exc)) from exc
 
     def _get_or_create_anonymizer(self) -> Any:
+        """Devuelve una instancia reutilizada del anonimizer, creando solo en el primer uso."""
         # Fast path sin lock: una vez cacheada, no hay contencion en requests normales.
         if self._anonymizer_instance is not None:
             return self._anonymizer_instance

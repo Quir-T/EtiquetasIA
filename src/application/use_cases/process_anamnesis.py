@@ -17,6 +17,7 @@ from src.shared.exceptions.app_exceptions import AnonymizationValidationError, N
 
 @dataclass(slots=True)
 class ProcessAnamnesisUseCase:
+    """Orquesta el flujo completo de procesamiento de una anamnesis."""
     anonymizer: AnonymizerInterface
     nlp_provider: NLPProviderInterface
     application_service: AnamnesisService
@@ -30,8 +31,8 @@ class ProcessAnamnesisUseCase:
         patient_id: int,
         doctor_id: int,
         text: str,
-        request_source: str | None = None,
     ) -> AnamnesisEvent:
+        """Procesa un texto clínico completo: validación, anonimización, extracción y persistencia."""
         context = build_execution_context(text, self.labels_catalog_service)
         provider_name = self._provider_name()
         normalized_text = validate_text_or_raise(
@@ -123,7 +124,6 @@ class ProcessAnamnesisUseCase:
             labels_json={
                 "hallazgos": filtered_hallazgos,
                 "raw_response": provider_result,
-                "request_source": request_source,
             },
             status=ProcessStatus.SUCCESS,
             error_code=None,
@@ -134,4 +134,5 @@ class ProcessAnamnesisUseCase:
         return self.application_service.persist_event(event)
 
     def _provider_name(self) -> str:
+        """Devuelve el nombre del provider para trazas y persistencia de eventos."""
         return type(self.nlp_provider).__name__.removesuffix("NLPProvider").lower() or "nlp"

@@ -24,6 +24,8 @@ process_status_db_enum = Enum(
 
 
 class AnamnesisEventModel(Base):
+    """Modelo persistente del evento principal de procesamiento de una anamnesis."""
+
     __tablename__ = "anamnesis_processing_events"
 
     process_id: Mapped[str] = mapped_column(String(36), primary_key=True)
@@ -40,6 +42,8 @@ class AnamnesisEventModel(Base):
 
 
 class AnamnesisAuditModel(Base):
+    """Modelo persistente de auditoría con metadatos del procesamiento."""
+
     __tablename__ = "anamnesis_processing_audit"
 
     audit_id: Mapped[str] = mapped_column(String(36), primary_key=True)

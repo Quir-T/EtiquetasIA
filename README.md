@@ -1,142 +1,96 @@
 # Proyecto IA Etiquetas
 
-API REST para anonimización y procesamiento de anamnesis clínicas.
+API REST para anonimización, extracción de hallazgos clínicos y auditoría de anamnesis.
 
-**Estado:** implementado  
-**Stack:** FastAPI, PostgreSQL, Alembic, Docker Compose
+**Estado:** implementado y actualizado al estado actual del repositorio  
+**Stack:** FastAPI, PostgreSQL, Alembic, Docker Compose, httpx, anonymizers configurables
 
 ## Descripción
 
-Este proyecto expone una API para:
+El repositorio contiene:
 
-- Anonimizar texto clínico de anamnesis.
-- Procesar anamnesis con proveedor NLP configurable (Google o Qwen) y extraer hallazgos.
-- Persistir datos clínicos y trazabilidad operativa de manera inmutable.
+- una API versionada en `/api/v1`;
+- persistencia inmutable separada entre datos clínicos y auditoría operacional;
+- proveedores NLP configurables entre Google y Qwen/Ollama;
+- anonymizers seleccionables por entorno.
 
-La API está versionada en `/api/v1` y protegida con API Key en `X-API-Key`.
-Los endpoints de salud estan en: `/health/live` y `/health`.
-La documentación interactiva de OpenAPI queda disponible en `/docs` y `/openapi.json`.
+La API usa `X-API-Key` para proteger los endpoints funcionales. Los endpoints de salud viven en `/health/live` y `/health`. La documentación OpenAPI está expuesta en `/docs` y `/openapi.json`.
 
 ## Funcionalidades
 
 - `POST /api/v1/anamnesis/anonymize`: anonimiza texto sin invocar NLP.
-- `POST /api/v1/anamnesis/process`: anonimiza + NLP + filtro por catálogo + persistencia.
-- `GET /api/v1/anamnesis/process/{process_id}`: recupera un proceso por ID (datos clínicos).
-- `GET /api/v1/catalog/labels`: devuelve catálogo cerrado de etiquetas.
-- `GET /api/v1/audit/events`: lista eventos de auditoría (paginado).
-- `GET /api/v1/audit/processes/{process_id}`: devuelve último evento de auditoría por `process_id`.
+- `POST /api/v1/anamnesis/process`: anonimiza, extrae hallazgos, filtra contra catálogo y persiste.
+- `GET /api/v1/anamnesis/process/{process_id}`: devuelve la vista clínica del proceso.
+- `GET /api/v1/catalog/labels`: expone el catálogo cerrado de etiquetas.
+- `GET /api/v1/audit/events`: lista eventos de auditoría con paginación.
+- `GET /api/v1/audit/processes/{process_id}`: recupera la auditoría asociada al proceso.
 - `GET /health/live`: liveness.
-- `GET /health`: readiness (DB + proveedor NLP).
+- `GET /health`: readiness de base de datos y proveedor NLP.
 
 ## Arquitectura
 
 Capas principales:
 
-- **API:** routers, schemas, seguridad, handlers de excepciones.
-- **Application:** casos de uso y helpers compartidos.
-- **Domain:** entidades, interfaces y excepciones de dominio.
-- **Infrastructure:** repositorio PostgreSQL, proveedores NLP, adapter de anonymizer, loader de catálogo.
+- **API:** routers, seguridad, handlers y dependencias cacheadas.
+- **Application:** casos de uso y servicios.
+- **Domain:** entidades, puertos y excepciones.
+- **Infrastructure:** PostgreSQL, providers NLP, anonymizers y catálogo.
 
 Persistencia:
 
-- `anamnesis_processing_events`
-- `anamnesis_processing_audit`
+- `anamnesis_processing_events`: payload clínico y estado funcional.
+- `anamnesis_processing_audit`: trazabilidad operativa, errores, tiempos, proveedor y versiones.
 
-Separación de responsabilidades:
+La relación `events -> audit` es `1:1` por `process_id`. Ambos lados son append-only y la base bloquea `UPDATE/DELETE` mediante triggers.
 
-- `anamnesis_processing_events`: datos clínicos/funcionales del proceso.
-- `anamnesis_processing_audit`: datos operativos de trazabilidad (errores, tiempos, versiones, proveedor).
-- Relación: `events` -> `audit` es 1:1 por `process_id` (enforced con `UNIQUE` en `audit.process_id`).
+## Estado actual de anonymización y NLP
 
-Inmutabilidad:
+La selección del anonymizer es dinámica mediante `ANONYMIZER_MODULE` y `ANONYMIZER_CLASS`.
 
-- Triggers en DB bloquean `UPDATE/DELETE` en ambas tablas.
+Implementaciones presentes en el repositorio:
 
-## Contrato
+- `LegacySpacyAnonymizer`
+- `PresidioTransformerAnonymizer`
 
-Convenciones de datos:
+Punto importante:
 
-- El shape canónico de extracción es `{"hallazgos": [...]}`.
-- La clave `labels` fue retirada del flujo de aplicación y de los proveedores.
-- `labels_catalog_service` sigue siendo el punto único para validar hallazgos contra el catálogo cerrado.
+- `.env.example` sigue apuntando al anonymizer legacy.
+- `requirements.txt` ya incluye el stack de Presidio y Transformers, por lo que el repositorio soporta una implementación más pesada aunque no sea la default del ejemplo.
 
-### POST /api/v1/anamnesis/process
+Providers NLP disponibles:
 
-Respuesta 200:
+- `google`: llamado HTTP a Google Generative Language API.
+- `qwen`: llamado HTTP a Ollama/Qwen.
 
-```json
-{
-  "process_id": "uuid",
-  "created_at": "2026-07-16T10:24:31Z",
-  "hallazgos": [
-    {"etiqueta": "...", "descripcion": "..."}
-  ],
-  "processing_ms": 3200
-}
-```
+Detalles vigentes:
 
-### GET /api/v1/anamnesis/process/{process_id}
+- Google envía el API key por header `x-goog-api-key`.
+- Google soporta reintentos configurables con backoff exponencial.
+- Qwen intenta parsear JSON tanto desde `response` como desde `thinking` o `message.content`.
 
-Respuesta 200:
+## Dependencias principales
 
-```json
-{
-  "process_id": "uuid",
-  "patient_id": 12345,
-  "doctor_id": 678,
-  "anonymized_text": "Paciente [ANONIMIZADO]...",
-  "hallazgos": [
-    {"etiqueta": "...", "descripcion": "..."}
-  ],
-  "status": "success",
-  "created_at": "2026-07-16T10:24:31Z"
-}
-```
-
-Nota:
-
-- `GET /anamnesis/process/{process_id}` ya no expone `error_code`, `error_message` ni `processing_ms`.
-- Esos datos operativos están en endpoints de auditoría.
-
-### GET /api/v1/audit/processes/{process_id}
-
-Respuesta 200 (campos principales):
-
-```json
-{
-  "audit_id": "uuid",
-  "process_id": "uuid",
-  "action": "process_anamnesis",
-  "status": "success",
-  "error_code": null,
-  "error_message": null,
-  "processing_ms": 3200,
-  "prompt_version": "v1",
-  "labels_catalog_version": "v1",
-  "provider": "google",
-  "provider_model": "...",
-  "metadata_json": {"text_length": 1500},
-  "created_at": "2026-07-16T10:24:31Z"
-}
-```
-
-## Tecnologías
-
-- fastapi==0.115.6
-- uvicorn[standard]==0.34.0
-- pydantic==2.10.4
-- pydantic-settings==2.7.1
-- SQLAlchemy==2.0.36
-- psycopg[binary]==3.2.4
-- alembic==1.14.0
-- python-dotenv==1.0.1
-- httpx==0.28.1
-- spacy==3.8.2
+- `fastapi==0.115.6`
+- `uvicorn[standard]==0.34.0`
+- `pydantic==2.12.5`
+- `pydantic-settings==2.7.1`
+- `SQLAlchemy==2.0.36`
+- `psycopg[binary]==3.2.4`
+- `alembic==1.14.0`
+- `python-dotenv==1.0.1`
+- `httpx==0.28.1`
+- `presidio-analyzer[transformers]==2.2.364`
+- `presidio-anonymizer==2.2.364`
+- `spacy==3.8.14`
+- `spacy-transformers==1.4.0`
+- `torch==2.13.0`
+- `transformers==4.53.2`
 
 ## Requisitos previos
 
 - Docker Engine
 - Docker Compose plugin
+- Opcional para `NLP_PROVIDER=qwen`: una instancia Ollama accesible desde el entorno configurado
 
 Verificación:
 
@@ -147,8 +101,13 @@ docker compose version
 
 ## Arranque rápido con Docker
 
+1. Crear `.env` a partir de `.env.example`.
+2. Ajustar `API_KEY`, credenciales y provider según el entorno.
+3. Levantar servicios.
+
 ```bash
-cd /ProyectoIA
+cd /home/tom/Hospital/ProyectoIA
+cp .env.example .env
 docker compose up -d --build
 docker compose ps
 ```
@@ -156,9 +115,10 @@ docker compose ps
 Notas:
 
 - API en `http://localhost:8000`
-- El entrypoint ejecuta `alembic upgrade head` automáticamente con reintentos.
+- `docker-entrypoint.sh` ejecuta `alembic upgrade head` al arrancar el contenedor
+- el servicio `api` monta `src/` como volumen de solo lectura
 
-## Variables de entorno importantes
+## Variables de entorno relevantes
 
 ### Aplicación
 
@@ -183,29 +143,90 @@ Notas:
 - `ANONYMIZER_MODULE`
 - `ANONYMIZER_CLASS`
 
-Notas operativas:
+Comportamiento actual:
 
-- El adapter carga e instancia el anonymizer configurado una sola vez por proceso de API.
-- En el caso de `LegacySpacyAnonymizer`, el modelo `es_core_news_lg` y los JSON de configuracion se reutilizan entre requests; no se recargan en cada llamada.
+- el adapter instancia la implementación concreta una sola vez por proceso;
+- el wiring general de dependencias en `src/api/deps.py` está cacheado con `@lru_cache`.
 
-### Proveedor NLP
+### Google NLP
 
+- `NLP_PROVIDER=google`
 - `GOOGLE_NLP_ENDPOINT`
 - `GOOGLE_NLP_MODEL`
 - `GOOGLE_API_KEY`
+- `GOOGLE_NLP_MAX_RETRIES`
+- `GOOGLE_NLP_BASE_BACKOFF_SECONDS`
+- `GOOGLE_NLP_MAX_BACKOFF_SECONDS`
+
+### Qwen NLP
+
+- `NLP_PROVIDER=qwen`
 - `QWEN_NLP_ENDPOINT`
 - `QWEN_NLP_MODEL`
 - `QWEN_API_KEY`
-- `NLP_PROVIDER` (`google` o `qwen`)
 
-### Migraciones en arranque
+Valor actual del ejemplo:
 
-- `DB_MIGRATION_MAX_RETRIES` (default: 20)
-- `DB_MIGRATION_RETRY_DELAY_SECONDS` (default: 3)
+- `QWEN_NLP_ENDPOINT=http://host.docker.internal:11434/api/generate`
+
+## Contrato resumido
+
+Convenciones:
+
+- la salida canónica de extracción es `{"hallazgos": [...]}`;
+- `process_id` identifica la trazabilidad funcional;
+- la vista operativa completa se consulta por endpoints de auditoría.
+
+### `POST /api/v1/anamnesis/process`
+
+```json
+{
+  "process_id": "uuid",
+  "created_at": "2026-08-11T10:24:31Z",
+  "hallazgos": [
+    {"etiqueta": "...", "descripcion": "..."}
+  ],
+  "processing_ms": 3200
+}
+```
+
+### `GET /api/v1/anamnesis/process/{process_id}`
+
+```json
+{
+  "process_id": "uuid",
+  "patient_id": 12345,
+  "doctor_id": 678,
+  "anonymized_text": "Paciente [ANONIMIZADO]...",
+  "hallazgos": [
+    {"etiqueta": "...", "descripcion": "..."}
+  ],
+  "status": "success",
+  "created_at": "2026-08-11T10:24:31Z"
+}
+```
+
+### `GET /api/v1/audit/processes/{process_id}`
+
+```json
+{
+  "audit_id": "uuid",
+  "process_id": "uuid",
+  "action": "process_anamnesis",
+  "status": "success",
+  "error_code": null,
+  "error_message": null,
+  "processing_ms": 3200,
+  "prompt_version": "v1",
+  "labels_catalog_version": "v1",
+  "provider": "google",
+  "provider_model": "...",
+  "metadata_json": {"text_length": 1500},
+  "created_at": "2026-08-11T10:24:31Z"
+}
+```
 
 ## Ejemplos de uso
-
-Define variables:
 
 ```bash
 export BASE_URL="http://localhost:8000"
@@ -218,11 +239,6 @@ export API_KEY="tu_api_key"
 curl -s "$BASE_URL/health/live"
 curl -s "$BASE_URL/health"
 ```
-
-Nota:
-
-- Los endpoints de salud no usan el prefijo `/api/v1` y viven en la raíz del servicio.
-- `GET /health` puede responder `200` o `503` con el mismo schema `HealthResponse`, según el estado de DB y proveedor NLP.
 
 ### Catálogo
 
@@ -252,8 +268,7 @@ curl -s -X POST "$BASE_URL/api/v1/anamnesis/process" \
   -d '{
     "patient_id": 12345,
     "doctor_id": 678,
-    "text": "Paciente refiere dolor toracico, tabaquismo activo, alergia a penicilina",
-    "request_source": "legacy_php"
+    "text": "Paciente refiere dolor toracico, tabaquismo activo, alergia a penicilina"
   }'
 ```
 
@@ -271,42 +286,27 @@ curl -s -H "X-API-Key: $API_KEY" \
   "$BASE_URL/api/v1/audit/events?page=1&page_size=20"
 ```
 
-Nota:
-
-- Si `page` excede el rango disponible, la API responde `400` con `AUDIT_PAGE_OUT_OF_RANGE`.
-
-### Auditoría por process_id
+### Auditoría por `process_id`
 
 ```bash
 curl -s -H "X-API-Key: $API_KEY" \
   "$BASE_URL/api/v1/audit/processes/<process_id>"
 ```
 
-## Códigos HTTP relevantes
-
-- `200`: OK
-- `400`: Error de validación de request
-- `401`: API key inválida
-- `404`: Recurso no encontrado
-- `408`: Timeout de procesamiento/proveedor
-- `502`: Error de proveedor NLP
-- `503`: Servicio degradado
-- `500`: Error interno
-
 ## Migraciones y base de datos
 
-Migraciones incluidas:
+Migración presente:
 
 - `001_initial_schema`
 
-La migración `001_initial_schema` crea:
+Incluye:
 
 - tablas `anamnesis_processing_events` y `anamnesis_processing_audit`
+- enum `process_status_enum`
 - FK `audit.process_id -> events.process_id`
-- restricción `UNIQUE` en `audit.process_id` para mantener cardinalidad 1:1
-- enum `process_status_enum` compartido por `events.status` y `audit.status`
-- índices principales en ambas tablas
-- triggers de inmutabilidad para bloquear `UPDATE/DELETE`
+- `UNIQUE` en `audit.process_id`
+- índices principales
+- triggers de inmutabilidad
 
 Ejecutar migraciones manualmente:
 
@@ -324,34 +324,28 @@ docker compose exec api sh
 docker compose exec postgres psql -U app -d anamnesis_db
 docker compose restart api
 docker compose down
-# cuidado: elimina volumenes y DB
 docker compose down -v
 ```
 
 ## Troubleshooting rápido
 
-- **API no levanta:** revisar logs de API/Postgres y validar `.env`.
-- **Error DB:** revisar `DATABASE_DSN` y health de postgres en `docker compose ps`.
-- **401 Unauthorized:** revisar `API_KEY` y header `X-API-Key`.
-- **400 en requests:** validar payload (`patient_id`, `doctor_id`, `text`).
-- **Fallo NLP:** revisar `GOOGLE_API_KEY`, endpoint y conectividad.
+- Si la API no levanta, revisar logs de `api` y `postgres` y validar `.env`.
+- Si falla DB, revisar `DATABASE_DSN`, `docker compose ps` y el readiness de `/health`.
+- Si devuelve `401`, revisar `API_KEY` y el header `X-API-Key`.
+- Si falla `qwen`, validar conectividad al endpoint configurado en `QWEN_NLP_ENDPOINT`.
+- Si falla `google`, revisar `GOOGLE_API_KEY`, endpoint y parámetros de retry/timeout.
 
 ## Estructura del repositorio
 
-- `src/main.py`
-- `src/api/`
-- `src/application/`
-- `src/domain/`
-- `src/infrastructure/`
+- `src/`
 - `migrations/`
 - `docker-compose.yml`
 - `Dockerfile`
-- `alembic.ini`
+- `docker-entrypoint.sh`
+- `requirements.txt`
+- `.env.example`
 
 ## Notas
 
-- El contenedor instala `es_core_news_lg` durante build.
-- El anonymizer legacy queda cacheado en memoria por proceso una vez resuelto por el adapter.
-- Los providers de dependencias de `src/api/deps.py` usan `@lru_cache`, por lo que repositorio, anonymizer, provider NLP y casos de uso se reutilizan por proceso.
-- Catálogo cargado desde `src/infrastructure/config/labels_catalog.json`.
-- Swagger/OpenAPI: `http://localhost:8000/docs`
+- La documentación principal describe el estado actual del repositorio, no planes futuros.
+- Si cambia el contrato o la configuración efectiva, conviene actualizar `README.md` y `SDD.md` en el mismo cambio.

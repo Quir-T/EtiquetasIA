@@ -16,7 +16,6 @@ class ProcessAnamnesisRequest(BaseModel):
     patient_id: int = Field(..., gt=0)
     doctor_id: int = Field(..., gt=0)
     text: str = Field(..., min_length=1)
-    request_source: str | None = Field(default=None, max_length=100)
 
     @field_validator("text")
     @classmethod

@@ -11,7 +11,8 @@ class Settings(BaseSettings):
 
     app_name: str = Field(default="Anamnesis API", alias="APP_NAME")
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
-    api_key: str = Field(default="change-me", alias="API_KEY")
+    api_key_write: str = Field(default="change-me", alias="API_KEY_WRITE")
+    api_key_read: str = Field(default="change-me", alias="API_KEY_READ")
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost", "http://127.0.0.1"], alias="CORS_ORIGINS")
     max_text_length: int = Field(default=12000, alias="MAX_TEXT_LENGTH")
     nlp_provider_timeout_seconds: int = Field(default=10, alias="NLP_PROVIDER_TIMEOUT_SECONDS")

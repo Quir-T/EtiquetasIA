@@ -52,6 +52,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from bisect import bisect_left, bisect_right
 from pathlib import Path
 from typing import Any
@@ -93,6 +94,9 @@ UMBRAL_PERMISIVO = 0.75
 # del modelo para evitar cortes en el borde de contexto.
 TOKEN_BUDGET = 480
 TOKEN_OVERLAP = 24
+SEPARADORES_PERSONA_MERGE = frozenset({" ", "'", "’", "-", "."})
+VENTANA_TITULO_PERSONA = 20
+PATRON_TITULO_CERCANO = re.compile(r"(?i)(?:\bdr\.?|\bdra\.?|\bprof\.?|\bprofa\.?|\blic\.?|\bing\.?|\barq\.?)\s*$")
 
 
 def _filtrar_por_politica_de_entidad(resultados: list[RecognizerResult]) -> list[RecognizerResult]:
@@ -309,7 +313,7 @@ def build_titulo_profesional_recognizer() -> PatternRecognizer:
     # Se unifica con "PERSON" para potenciar la IA
     pattern = Pattern(
         name="titulo",
-        regex=r"(?i)\b(?:dr\.?|dra\.?|prof\.?|profa\.?|lic\.?|ing\.?|arq\.?)\s+(?:[a-záéíóúñ]+(?:\s+[a-záéíóúñ]+){0,2})",
+        regex=r"(?i)\b(?:dr\.?|dra\.?|prof\.?|profa\.?|lic\.?|ing\.?|arq\.?)\s+(?:[a-záéíóúñ]+(?:[’'][a-záéíóúñ]+)*(?:\s+[a-záéíóúñ]+(?:[’'][a-záéíóúñ]+)*){0,2})",
         score=0.9,
     )
     return PatternRecognizer(supported_entity="PERSON", patterns=[pattern], supported_language="es")
@@ -688,6 +692,66 @@ class PresidioTransformerAnonymizer:
                 dedupe[key] = r
         return sorted(dedupe.values(), key=lambda r: (r.start, r.end, -r.score))
 
+    @staticmethod
+    def _tiene_titulo_profesional_cercano(texto: str, start: int) -> bool:
+        inicio = max(0, start - VENTANA_TITULO_PERSONA)
+        contexto = texto[inicio:start]
+        return bool(PATRON_TITULO_CERCANO.search(contexto))
+
+    @staticmethod
+    def _es_merge_persona_valido(izquierda: RecognizerResult, derecha: RecognizerResult, texto: str) -> bool:
+        if izquierda.entity_type != "PERSON" or derecha.entity_type != "PERSON":
+            return False
+        if derecha.start < izquierda.end:
+            return False
+
+        separador = texto[izquierda.end : derecha.start]
+        if len(separador) > 3:
+            return False
+        if any(char in "\n,:;" for char in separador):
+            return False
+        if any(char not in SEPARADORES_PERSONA_MERGE for char in separador):
+            return False
+
+        texto_izquierda = texto[izquierda.start : izquierda.end].strip(" .'’-")
+        texto_derecha = texto[derecha.start : derecha.end].strip(" .'’-")
+        if len(texto_izquierda) < 1 or len(texto_derecha) < 2:
+            return False
+
+        if len(texto_izquierda) == 1 and not PresidioTransformerAnonymizer._tiene_titulo_profesional_cercano(
+            texto,
+            izquierda.start,
+        ):
+            return False
+
+        return True
+
+    def _fusionar_personas_fragmentadas(self, texto: str, resultados: list[RecognizerResult]) -> list[RecognizerResult]:
+        if not resultados:
+            return resultados
+
+        ordenados = sorted(resultados, key=lambda r: (r.start, r.end, -r.score))
+        fusionados: list[RecognizerResult] = []
+        actual = ordenados[0]
+
+        for candidato in ordenados[1:]:
+            if self._es_merge_persona_valido(actual, candidato, texto):
+                actual = RecognizerResult(
+                    entity_type="PERSON",
+                    start=actual.start,
+                    end=candidato.end,
+                    score=max(actual.score, candidato.score),
+                    analysis_explanation=actual.analysis_explanation,
+                    recognition_metadata=actual.recognition_metadata,
+                )
+                continue
+
+            fusionados.append(actual)
+            actual = candidato
+
+        fusionados.append(actual)
+        return fusionados
+
     def _anonimizar_texto_largo(self, texto_largo: str) -> str:
         """Anonimiza por chunks de oraciones respetando un presupuesto de tokens."""
         if not texto_largo.strip():
@@ -717,6 +781,8 @@ class PresidioTransformerAnonymizer:
                     )
                 )
 
+        resultados_globales = self._deduplicar_resultados(resultados_globales)
+        resultados_globales = self._fusionar_personas_fragmentadas(texto_largo, resultados_globales)
         resultados_globales = self._deduplicar_resultados(resultados_globales)
         if not resultados_globales:
             return texto_largo

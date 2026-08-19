@@ -13,6 +13,7 @@ from src.shared.exceptions.app_exceptions import AppException
 
 
 def _error_payload(error_code: str, message: str, details: object = None, process_id: str | None = None) -> dict:
+    """Construye un payload de error homogéneo para la API."""
     return ErrorResponse(
         error_code=error_code,
         message=message,
@@ -22,6 +23,7 @@ def _error_payload(error_code: str, message: str, details: object = None, proces
 
 
 async def app_exception_handler(request: Request, exc: AppException) -> JSONResponse:
+    """Serializa errores de dominio con el formato estándar del proyecto."""
     return JSONResponse(
         status_code=exc.http_status,
         content=_error_payload(
@@ -34,6 +36,7 @@ async def app_exception_handler(request: Request, exc: AppException) -> JSONResp
 
 
 async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+    """Convierte errores de validación de FastAPI en respuestas JSON consistentes."""
     return JSONResponse(
         status_code=400,
         content=_error_payload(
@@ -59,6 +62,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
 
 
 async def generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Captura fallos inesperados y evita exponer trazas crudas al cliente."""
     return JSONResponse(
         status_code=500,
         content=_error_payload(
