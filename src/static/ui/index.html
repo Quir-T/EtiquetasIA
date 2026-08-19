@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anamnesis API — Panel de pruebas</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #1a1d24;
+    --border: #2a2e37;
+    --text: #e6e8eb;
+    --muted: #8b909c;
+    --accent: #4f8cff;
+    --ok: #3ecf8e;
+    --error: #ff5c5c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 2rem 1rem;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    justify-content: center;
+  }
+  main {
+    width: 100%;
+    max-width: 720px;
+  }
+  h1 {
+    font-size: 1.3rem;
+    margin-bottom: 0.25rem;
+  }
+  p.subtitle {
+    color: var(--muted);
+    margin-top: 0;
+    margin-bottom: 1.5rem;
+    font-size: 0.9rem;
+  }
+  form {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+  input, select, textarea {
+    background: #12141a;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    padding: 0.55rem 0.65rem;
+    font-size: 0.95rem;
+    font-family: inherit;
+  }
+  textarea {
+    min-height: 140px;
+    resize: vertical;
+    font-family: ui-monospace, monospace;
+  }
+  .row {
+    display: flex;
+    gap: 1rem;
+  }
+  .row > label {
+    flex: 1;
+  }
+  button {
+    background: var(--accent);
+    border: none;
+    border-radius: 6px;
+    color: white;
+    padding: 0.7rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+  #result {
+    margin-top: 1.25rem;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: ui-monospace, monospace;
+    font-size: 0.85rem;
+    min-height: 3rem;
+    color: var(--muted);
+  }
+  #result.ok { border-color: var(--ok); color: var(--text); }
+  #result.error { border-color: var(--error); color: var(--text); }
+  .hint {
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin-top: -0.5rem;
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Anamnesis API — Panel de pruebas</h1>
+  <p class="subtitle">Este proyecto expone una API para: Anonimizar texto clínico.Procesar anamnesis con proveedor NLP configurable (Google o Qwen) y extraer hallazgos.Persistir datos clínicos y trazabilidad operativa de manera inmutable.</p>
+
+  <form id="form">
+    <label>
+      Endpoint
+      <select id="endpoint">
+        <option value="process">Procesar anamnesis completa (anonimiza + NLP + guarda)</option>
+        <option value="anonymize">Solo anonimizar (sin NLP)</option>
+      </select>
+    </label>
+
+    <label>
+      API Key
+      <input id="apiKey" type="password" autocomplete="off" placeholder="X-API-Key">
+    </label>
+    <div id="requestSourceLabel" class="hint">Se guarda solo en este navegador para no tener que reescribirla cada vez.</div>
+
+    <div class="row">
+      <label>
+        Patient ID
+        <input id="patientId" type="number" min="1" value="12345">
+      </label>
+      <label>
+        Doctor ID
+        <input id="doctorId" type="number" min="1" value="678">
+      </label>
+    </div>
+
+    <label>
+      Texto de anamnesis
+      <textarea id="text" placeholder="Paciente refiere dolor toracico, tabaquismo activo..."></textarea>
+    </label>
+
+    <button id="submitBtn" type="submit">Enviar</button>
+  </form>
+
+  <div id="result">La respuesta va a aparecer acá.</div>
+</main>
+
+<script>
+  const form = document.getElementById('form');
+  const endpointSelect = document.getElementById('endpoint');
+  const requestSourceLabel = document.getElementById('requestSourceLabel');
+  const resultDiv = document.getElementById('result');
+  const submitBtn = document.getElementById('submitBtn');
+  const apiKeyInput = document.getElementById('apiKey');
+
+  const STORAGE_KEY = 'anamnesis_ui_api_key';
+
+  // Recuperar API key guardada localmente (solo en este navegador).
+  apiKeyInput.value = localStorage.getItem(STORAGE_KEY) || '';
+
+  function toggleRequestSource() {
+    if (!requestSourceLabel) return;
+    requestSourceLabel.style.display = endpointSelect.value === 'process' ? 'block' : 'none';
+  }
+  endpointSelect.addEventListener('change', toggleRequestSource);
+  toggleRequestSource();
+
+  function endpointPath(endpoint) {
+    return endpoint === 'process' ? '/api/v1/anamnesis/process' : '/api/v1/anamnesis/anonymize';
+  }
+
+  function buildBody(endpoint) {
+    const body = {
+      patient_id: Number(document.getElementById('patientId').value),
+      doctor_id: Number(document.getElementById('doctorId').value),
+      text: document.getElementById('text').value,
+    };
+    return body;
+  }
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+
+    const apiKey = apiKeyInput.value.trim();
+    if (!apiKey) {
+      resultDiv.className = 'error';
+      resultDiv.textContent = 'Falta la X-API-Key.';
+      return;
+    }
+
+    localStorage.setItem(STORAGE_KEY, apiKey);
+
+    const endpoint = endpointSelect.value;
+    const body = buildBody(endpoint);
+
+    resultDiv.className = '';
+    resultDiv.textContent = 'Enviando...';
+    submitBtn.disabled = true;
+
+    try {
+      const response = await fetch(endpointPath(endpoint), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': apiKey,
+        },
+        body: JSON.stringify(body),
+      });
+
+      let data;
+      try {
+        data = await response.json();
+      } catch {
+        data = { message: 'La respuesta no es JSON valido.' };
+      }
+
+      resultDiv.className = response.ok ? 'ok' : 'error';
+      resultDiv.textContent = `HTTP ${response.status}\n\n${JSON.stringify(data, null, 2)}`;
+    } catch (err) {
+      resultDiv.className = 'error';
+      resultDiv.textContent = `Error de red: ${err.message}`;
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>

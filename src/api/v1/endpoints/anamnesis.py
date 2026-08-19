@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from src.api.deps import get_anonymize_text_use_case, get_get_process_use_case, get_process_anamnesis_use_case
-from src.api.security import require_api_key
+from src.api.security import require_api_key_read, require_api_key_write
 from src.api.v1.schemas.request import AnonymizeTextRequest, ProcessAnamnesisRequest
 from src.api.v1.schemas.response import AnonymizeTextResponse, ErrorResponse, GetProcessResponse, HallazgoItem, ProcessAnamnesisResponse
 from src.application.use_cases.anonymize_text import AnonymizeTextUseCase
@@ -28,7 +28,7 @@ router = APIRouter(prefix="/anamnesis")
 )
 async def anonymize_text(
     payload: AnonymizeTextRequest,
-    _: None = Depends(require_api_key),
+    _: None = Depends(require_api_key_write),
     use_case: AnonymizeTextUseCase = Depends(get_anonymize_text_use_case),
 ) -> AnonymizeTextResponse:
     """Crea texto anonimizado y persiste la traza del proceso.
@@ -67,7 +67,7 @@ async def anonymize_text(
 )
 async def process_anamnesis(
     payload: ProcessAnamnesisRequest,
-    _: None = Depends(require_api_key),
+    _: None = Depends(require_api_key_write),
     use_case: ProcessAnamnesisUseCase = Depends(get_process_anamnesis_use_case),
 ) -> ProcessAnamnesisResponse:
     """Ejecuta el pipeline completo: anonimización + extracción de etiquetas + persistencia.
@@ -104,7 +104,7 @@ async def process_anamnesis(
 )
 async def get_process(
     process_id: str,
-    _: None = Depends(require_api_key),
+    _: None = Depends(require_api_key_read),
     use_case: GetProcessUseCase = Depends(get_get_process_use_case),
 ) -> GetProcessResponse:
     """Recupera un proceso persistido por process_id.

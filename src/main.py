@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from src.api.exception_handlers import app_exception_handler, generic_exception_handler, http_exception_handler, validation_exception_handler
@@ -58,3 +59,8 @@ app.add_exception_handler(Exception, generic_exception_handler)
 # separado porque atienden a públicos operativos distintos.
 app.include_router(v1_router)
 app.include_router(health_router)
+
+# Panel de pruebas estático para personal no tecnico. No es un cliente
+# privilegiado: usa la misma API Key y los mismos endpoints publicos que
+# cualquier otro consumidor (ver src/static/ui/index.html).
+app.mount("/ui", StaticFiles(directory="src/static/ui", html=True), name="ui")
