@@ -1,4 +1,4 @@
-"""Anonimizador de historias clínicas (Argentina) basado en Microsoft Presidio y Transformers.
+"""Anonimizador de texto clínico basado en Microsoft Presidio y Transformers.
 
 Implementa el puerto AnonymizerInterface (anonymize(text) -> str) para poder
 ser cargado dinámicamente por ModuleAnonymizerAdapter vía ANONYMIZER_MODULE /
@@ -97,6 +97,9 @@ TOKEN_OVERLAP = 24
 SEPARADORES_PERSONA_MERGE = frozenset({" ", "'", "’", "-", "."})
 VENTANA_TITULO_PERSONA = 20
 PATRON_TITULO_CERCANO = re.compile(r"(?i)(?:\bdr\.?|\bdra\.?|\bprof\.?|\bprofa\.?|\blic\.?|\bing\.?|\barq\.?)\s*$")
+PATRON_EXTENSION_NUMERO_CALLE = re.compile(
+    r"(?i)^\s*(?:n[º°]?\s*|nro\.?\s*|#\s*)?\d{1,5}\b"
+)
 
 
 def _filtrar_por_politica_de_entidad(resultados: list[RecognizerResult]) -> list[RecognizerResult]:
@@ -752,6 +755,71 @@ class PresidioTransformerAnonymizer:
         fusionados.append(actual)
         return fusionados
 
+    @staticmethod
+    def _es_merge_location_valido(izquierda: RecognizerResult, derecha: RecognizerResult, texto: str) -> bool:
+        if izquierda.entity_type != "LOCATION" or derecha.entity_type != "LOCATION":
+            return False
+        if derecha.start < izquierda.end:
+            return True
+
+        separador = texto[izquierda.end : derecha.start]
+        if len(separador) > 20:
+            return False
+        if any(char in "\n;:" for char in separador):
+            return False
+        if "." in separador:
+            return False
+        return True
+
+    @staticmethod
+    def _extender_location_con_numero(texto: str, resultado: RecognizerResult) -> RecognizerResult:
+        if resultado.entity_type != "LOCATION" or resultado.end >= len(texto):
+            return resultado
+
+        match = PATRON_EXTENSION_NUMERO_CALLE.match(texto[resultado.end : resultado.end + 20])
+        if not match:
+            return resultado
+
+        return RecognizerResult(
+            entity_type=resultado.entity_type,
+            start=resultado.start,
+            end=resultado.end + match.end(),
+            score=resultado.score,
+            analysis_explanation=resultado.analysis_explanation,
+            recognition_metadata=resultado.recognition_metadata,
+        )
+
+    def _fusionar_locations_y_numero(self, texto: str, resultados: list[RecognizerResult]) -> list[RecognizerResult]:
+        if not resultados:
+            return resultados
+
+        ordenados = sorted(resultados, key=lambda r: (r.start, r.end, -r.score))
+        fusionados: list[RecognizerResult] = []
+        actual = ordenados[0]
+
+        for candidato in ordenados[1:]:
+            if self._es_merge_location_valido(actual, candidato, texto):
+                actual = RecognizerResult(
+                    entity_type="LOCATION",
+                    start=actual.start,
+                    end=max(actual.end, candidato.end),
+                    score=max(actual.score, candidato.score),
+                    analysis_explanation=actual.analysis_explanation,
+                    recognition_metadata=actual.recognition_metadata,
+                )
+                continue
+
+            if actual.entity_type == "LOCATION":
+                actual = self._extender_location_con_numero(texto, actual)
+            fusionados.append(actual)
+            actual = candidato
+
+        if actual.entity_type == "LOCATION":
+            actual = self._extender_location_con_numero(texto, actual)
+        fusionados.append(actual)
+
+        return fusionados
+
     def _anonimizar_texto_largo(self, texto_largo: str) -> str:
         """Anonimiza por chunks de oraciones respetando un presupuesto de tokens."""
         if not texto_largo.strip():
@@ -783,6 +851,7 @@ class PresidioTransformerAnonymizer:
 
         resultados_globales = self._deduplicar_resultados(resultados_globales)
         resultados_globales = self._fusionar_personas_fragmentadas(texto_largo, resultados_globales)
+        resultados_globales = self._fusionar_locations_y_numero(texto_largo, resultados_globales)
         resultados_globales = self._deduplicar_resultados(resultados_globales)
         if not resultados_globales:
             return texto_largo

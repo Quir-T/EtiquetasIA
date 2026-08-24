@@ -76,6 +76,17 @@
   .row > label {
     flex: 1;
   }
+  label.inline-toggle {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.55rem;
+    color: var(--text);
+  }
+  label.inline-toggle input {
+    width: auto;
+    margin: 0;
+    accent-color: var(--accent);
+  }
   button {
     background: var(--accent);
     border: none;
@@ -96,15 +107,55 @@
     border: 1px solid var(--border);
     border-radius: 10px;
     padding: 1rem;
-    white-space: pre-wrap;
+    white-space: normal;
     word-break: break-word;
-    font-family: ui-monospace, monospace;
+    font-family: inherit;
     font-size: 0.85rem;
     min-height: 3rem;
     color: var(--muted);
   }
   #result.ok { border-color: var(--ok); color: var(--text); }
   #result.error { border-color: var(--error); color: var(--text); }
+  .result-head {
+    margin: 0 0 0.85rem;
+    font-weight: 700;
+  }
+  .result-section {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.75rem;
+    margin-bottom: 0.8rem;
+    background: #12141a;
+  }
+  .result-section h3 {
+    margin: 0 0 0.5rem;
+    font-size: 0.9rem;
+  }
+  .kv {
+    margin: 0.35rem 0;
+  }
+  .kv strong {
+    color: var(--text);
+  }
+  .result-list {
+    margin: 0;
+    padding-left: 1.1rem;
+  }
+  .result-list li {
+    margin-bottom: 0.55rem;
+  }
+  .result-json {
+    margin: 0;
+    white-space: pre-wrap;
+    font-family: ui-monospace, monospace;
+    color: var(--text);
+  }
+  .result-raw {
+    margin: 0;
+    white-space: pre-wrap;
+    font-family: ui-monospace, monospace;
+    color: var(--text);
+  }
   .hint {
     font-size: 0.75rem;
     color: var(--muted);
@@ -149,6 +200,11 @@
     </label>
 
     <button id="submitBtn" type="submit">Enviar</button>
+
+    <label class="inline-toggle">
+      <input id="showRaw" type="checkbox">
+      Mostrar respuesta raw (sin formateo)
+    </label>
   </form>
 
   <div id="result">La respuesta va a aparecer acá.</div>
@@ -161,8 +217,10 @@
   const resultDiv = document.getElementById('result');
   const submitBtn = document.getElementById('submitBtn');
   const apiKeyInput = document.getElementById('apiKey');
+  const showRawInput = document.getElementById('showRaw');
 
   const STORAGE_KEY = 'anamnesis_ui_api_key';
+  let lastResponse = null;
 
   // Recuperar API key guardada localmente (solo en este navegador).
   apiKeyInput.value = localStorage.getItem(STORAGE_KEY) || '';
@@ -186,6 +244,103 @@
     };
     return body;
   }
+
+  function clearResult() {
+    resultDiv.innerHTML = '';
+  }
+
+  function appendResultHeading(statusCode) {
+    const heading = document.createElement('p');
+    heading.className = 'result-head';
+    heading.textContent = `HTTP ${statusCode}`;
+    resultDiv.appendChild(heading);
+  }
+
+  function appendSection(title) {
+    const section = document.createElement('section');
+    section.className = 'result-section';
+    const heading = document.createElement('h3');
+    heading.textContent = title;
+    section.appendChild(heading);
+    resultDiv.appendChild(section);
+    return section;
+  }
+
+  function appendKeyValue(parent, key, value) {
+    const row = document.createElement('p');
+    row.className = 'kv';
+    const strong = document.createElement('strong');
+    strong.textContent = `${key}: `;
+    row.appendChild(strong);
+    row.appendChild(document.createTextNode(String(value ?? '')));
+    parent.appendChild(row);
+  }
+
+  function renderRaw(statusCode, rawText) {
+    clearResult();
+    appendResultHeading(statusCode);
+    const rawBlock = document.createElement('pre');
+    rawBlock.className = 'result-raw';
+    rawBlock.textContent = rawText || '(vacio)';
+    resultDiv.appendChild(rawBlock);
+  }
+
+  function renderStyled(statusCode, data, rawText) {
+    clearResult();
+    appendResultHeading(statusCode);
+
+    if (!data || typeof data !== 'object') {
+      const section = appendSection('Respuesta');
+      appendKeyValue(section, 'Contenido', rawText || '(sin contenido)');
+      return;
+    }
+
+    const processId = data.process_id;
+    const anonymizedText = data.anonymized_text;
+    const hallazgos = Array.isArray(data.hallazgos) ? data.hallazgos : [];
+
+    if (processId || typeof anonymizedText === 'string') {
+      const anonymizedSection = appendSection('Texto anonimizado');
+      appendKeyValue(anonymizedSection, 'ID', processId || '-');
+      appendKeyValue(anonymizedSection, 'Texto anonimizado', anonymizedText || '-');
+    }
+
+    if (hallazgos.length > 0) {
+      const labelsSection = appendSection('Etiquetas detectadas');
+      const list = document.createElement('ol');
+      list.className = 'result-list';
+
+      hallazgos.forEach((item, index) => {
+        const row = document.createElement('li');
+        const labelId = item && typeof item === 'object' && item.id != null ? item.id : null;
+        const name = item && typeof item === 'object' ? (item.etiqueta || item.nombre || '-') : '-';
+        const description = item && typeof item === 'object' ? (item.descripcion || '-') : '-';
+        row.textContent = labelId != null
+          ? `ID: ${labelId} | Etiqueta: ${name} | Descripcion: ${description}`
+          : `Etiqueta: ${name} | Descripcion: ${description}`;
+        list.appendChild(row);
+      });
+
+      labelsSection.appendChild(list);
+    }
+
+    const jsonSection = appendSection('JSON estilizado');
+    const jsonBlock = document.createElement('pre');
+    jsonBlock.className = 'result-json';
+    jsonBlock.textContent = JSON.stringify(data, null, 2);
+    jsonSection.appendChild(jsonBlock);
+  }
+
+  function renderLastResponse() {
+    if (!lastResponse) return;
+    if (showRawInput.checked) {
+      renderRaw(lastResponse.status, lastResponse.rawText);
+      return;
+    }
+    renderStyled(lastResponse.status, lastResponse.data, lastResponse.rawText);
+  }
+
+  showRawInput.addEventListener('change', renderLastResponse);
 
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -216,18 +371,25 @@
         body: JSON.stringify(body),
       });
 
-      let data;
+      const rawText = await response.text();
+      let data = null;
       try {
-        data = await response.json();
+        data = rawText ? JSON.parse(rawText) : null;
       } catch {
-        data = { message: 'La respuesta no es JSON valido.' };
+        data = null;
       }
 
       resultDiv.className = response.ok ? 'ok' : 'error';
-      resultDiv.textContent = `HTTP ${response.status}\n\n${JSON.stringify(data, null, 2)}`;
+      lastResponse = {
+        status: response.status,
+        data,
+        rawText: rawText || 'La respuesta no es JSON valido.',
+      };
+      renderLastResponse();
     } catch (err) {
       resultDiv.className = 'error';
       resultDiv.textContent = `Error de red: ${err.message}`;
+      lastResponse = null;
     } finally {
       submitBtn.disabled = false;
     }
