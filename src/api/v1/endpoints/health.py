@@ -18,7 +18,7 @@ async def health_live() -> dict[str, str]:
 
 
 @router.get("/health", response_model=HealthResponse)
-async def health_ready(
+def health_ready(
     response: Response,
     database_client: DatabaseClient = Depends(get_database_client),
     nlp_provider: NLPProviderInterface = Depends(get_nlp_provider),

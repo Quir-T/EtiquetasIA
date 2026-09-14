@@ -12,6 +12,7 @@ from src.api.exception_handlers import app_exception_handler, generic_exception_
 from src.api.v1.endpoints.health import router as health_router
 from src.api.v1.router import router as v1_router
 from src.config.settings import get_settings
+from src.infrastructure.config.labels_catalog_loader import initialize_runtime_labels_catalog
 from src.shared.exceptions.app_exceptions import AppException
 from src.shared.logging.logger import setup_logging
 
@@ -27,6 +28,7 @@ async def lifespan(app: FastAPI):
     explícito ayuda a testers y mantenedores a identificar dónde agregar
     efectos laterales de ciclo de vida en futuras iteraciones.
     """
+    initialize_runtime_labels_catalog(settings)
     yield
 
 

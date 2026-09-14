@@ -26,7 +26,7 @@ router = APIRouter(prefix="/anamnesis")
         500: {"model": ErrorResponse},
     },
 )
-async def anonymize_text(
+def anonymize_text(
     payload: AnonymizeTextRequest,
     _: None = Depends(require_api_key_write),
     use_case: AnonymizeTextUseCase = Depends(get_anonymize_text_use_case),
@@ -65,7 +65,7 @@ async def anonymize_text(
         502: {"model": ErrorResponse},
     },
 )
-async def process_anamnesis(
+def process_anamnesis(
     payload: ProcessAnamnesisRequest,
     _: None = Depends(require_api_key_write),
     use_case: ProcessAnamnesisUseCase = Depends(get_process_anamnesis_use_case),
@@ -102,7 +102,7 @@ async def process_anamnesis(
     response_model=GetProcessResponse,
     responses={404: {"model": ErrorResponse}},
 )
-async def get_process(
+def get_process(
     process_id: str,
     _: None = Depends(require_api_key_read),
     use_case: GetProcessUseCase = Depends(get_get_process_use_case),

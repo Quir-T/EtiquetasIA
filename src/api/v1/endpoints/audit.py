@@ -16,7 +16,7 @@ router = APIRouter(prefix="/audit")
 
 
 @router.get("/events", response_model=AuditEventsPageResponse, responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}})
-async def get_audit_events(
+def get_audit_events(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     _: None = Depends(require_api_key_read),
@@ -51,7 +51,7 @@ async def get_audit_events(
 
 
 @router.get("/processes/{process_id}", response_model=AuditEventItem, responses={404: {"model": ErrorResponse}})
-async def get_audit_event_by_process_id(
+def get_audit_event_by_process_id(
     process_id: str,
     _: None = Depends(require_api_key_read),
     use_case: GetAuditEventUseCase = Depends(get_get_audit_event_use_case),

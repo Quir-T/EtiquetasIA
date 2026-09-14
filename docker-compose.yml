@@ -11,6 +11,7 @@ services:
     volumes:
       - ./src:/app/src:ro
       - ./certs:/certs:ro
+      - ./data:/data
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:

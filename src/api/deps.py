@@ -13,7 +13,7 @@ from src.application.use_cases.get_process import GetProcessUseCase
 from src.application.use_cases.process_anamnesis import ProcessAnamnesisUseCase
 from src.config.settings import get_settings
 from src.infrastructure.adapters.anonymizer_adapter import ModuleAnonymizerAdapter
-from src.infrastructure.config.labels_catalog_loader import build_default_labels_catalog_loader
+from src.infrastructure.config.labels_catalog_loader import build_runtime_labels_catalog_loader
 from src.infrastructure.persistence.database import DatabaseClient
 from src.infrastructure.persistence.postgres_repository import PostgresAnamnesisRepository
 from src.domain.interfaces.nlp_provider import NLPProviderInterface
@@ -40,7 +40,7 @@ def get_anamnesis_repository() -> PostgresAnamnesisRepository:
 @lru_cache
 
 def get_labels_catalog_service() -> LabelsCatalogService:
-    return LabelsCatalogService(labels_catalog=build_default_labels_catalog_loader())
+    return LabelsCatalogService(labels_catalog=build_runtime_labels_catalog_loader())
 
 
 @lru_cache
