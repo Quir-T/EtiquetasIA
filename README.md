@@ -14,7 +14,12 @@ El repositorio contiene:
 - proveedores NLP configurables entre Google y Qwen/Ollama;
 - anonymizers seleccionables por entorno.
 
-La API usa `X-API-Key` para proteger los endpoints funcionales. Los endpoints de salud viven en `/health/live` y `/health`. La documentación OpenAPI está expuesta en `/docs` y `/openapi.json`.
+La API usa `X-API-Key` para proteger los endpoints funcionales con dos permisos separados:
+
+- lectura: `API_KEY_READ`
+- escritura: `API_KEY_WRITE`
+
+Los endpoints de salud viven en `/health/live` y `/health`. La documentación OpenAPI está expuesta en `/docs` y `/openapi.json`.
 
 ## Funcionalidades
 
@@ -26,6 +31,7 @@ La API usa `X-API-Key` para proteger los endpoints funcionales. Los endpoints de
 - `GET /api/v1/audit/processes/{process_id}`: recupera la auditoría asociada al proceso.
 - `GET /health/live`: liveness.
 - `GET /health`: readiness de base de datos y proveedor NLP.
+- `GET /ui`: panel estático de pruebas para ejecutar flujos manuales.
 
 ## Arquitectura
 
@@ -42,6 +48,12 @@ Persistencia:
 - `anamnesis_processing_audit`: trazabilidad operativa, errores, tiempos, proveedor y versiones.
 
 La relación `events -> audit` es `1:1` por `process_id`. Ambos lados son append-only y la base bloquea `UPDATE/DELETE` mediante triggers.
+
+Catálogo de etiquetas en runtime:
+
+- `LABELS_CATALOG_SOURCE=external_db` (default): carga desde DB externa al arranque, genera snapshot JSON versionado y mantiene historial en `*_history.jsonl`.
+- `LABELS_CATALOG_SOURCE=json`: arranca directo desde snapshot JSON sin consultar DB externa.
+- En ambos casos el catálogo queda cacheado en memoria durante la vida del proceso.
 
 ## Estado actual de anonymización y NLP
 
@@ -102,7 +114,7 @@ docker compose version
 ## Arranque rápido con Docker
 
 1. Crear `.env` a partir de `.env.example`.
-2. Ajustar `API_KEY`, credenciales y provider según el entorno.
+2. Ajustar `API_KEY_READ`, `API_KEY_WRITE`, credenciales y provider según el entorno.
 3. Levantar servicios.
 
 ```bash
@@ -124,11 +136,19 @@ Notas:
 
 - `APP_NAME`
 - `LOG_LEVEL`
-- `API_KEY`
+- `API_KEY_READ`
+- `API_KEY_WRITE`
 - `CORS_ORIGINS`
 - `MAX_TEXT_LENGTH`
 - `NLP_PROVIDER_TIMEOUT_SECONDS`
 - `PROMPT_VERSION`
+
+### Catálogo de etiquetas
+
+- `LABELS_CATALOG_SOURCE` (`external_db` o `json`)
+- `LABELS_CATALOG_EXTERNAL_DSN`
+- `LABELS_CATALOG_EXTERNAL_QUERY`
+- `LABELS_CATALOG_SNAPSHOT_PATH`
 
 ### Base de datos
 
@@ -230,7 +250,8 @@ Convenciones:
 
 ```bash
 export BASE_URL="http://localhost:8000"
-export API_KEY="tu_api_key"
+export API_KEY_READ="tu_api_key_read"
+export API_KEY_WRITE="tu_api_key_write"
 ```
 
 ### Health
@@ -243,7 +264,7 @@ curl -s "$BASE_URL/health"
 ### Catálogo
 
 ```bash
-curl -s -H "X-API-Key: $API_KEY" "$BASE_URL/api/v1/catalog/labels"
+curl -s -H "X-API-Key: $API_KEY_READ" "$BASE_URL/api/v1/catalog/labels"
 ```
 
 ### Solo anonimizar
@@ -251,7 +272,7 @@ curl -s -H "X-API-Key: $API_KEY" "$BASE_URL/api/v1/catalog/labels"
 ```bash
 curl -s -X POST "$BASE_URL/api/v1/anamnesis/anonymize" \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: $API_KEY" \
+  -H "X-API-Key: $API_KEY_WRITE" \
   -d '{
     "patient_id": 12345,
     "doctor_id": 678,
@@ -264,7 +285,7 @@ curl -s -X POST "$BASE_URL/api/v1/anamnesis/anonymize" \
 ```bash
 curl -s -X POST "$BASE_URL/api/v1/anamnesis/process" \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: $API_KEY" \
+  -H "X-API-Key: $API_KEY_WRITE" \
   -d '{
     "patient_id": 12345,
     "doctor_id": 678,
@@ -275,22 +296,28 @@ curl -s -X POST "$BASE_URL/api/v1/anamnesis/process" \
 ### Obtener proceso
 
 ```bash
-curl -s -H "X-API-Key: $API_KEY" \
+curl -s -H "X-API-Key: $API_KEY_READ" \
   "$BASE_URL/api/v1/anamnesis/process/<process_id>"
 ```
 
 ### Auditoría paginada
 
 ```bash
-curl -s -H "X-API-Key: $API_KEY" \
+curl -s -H "X-API-Key: $API_KEY_READ" \
   "$BASE_URL/api/v1/audit/events?page=1&page_size=20"
 ```
 
 ### Auditoría por `process_id`
 
 ```bash
-curl -s -H "X-API-Key: $API_KEY" \
+curl -s -H "X-API-Key: $API_KEY_READ" \
   "$BASE_URL/api/v1/audit/processes/<process_id>"
+
+### Panel UI estático
+
+```bash
+xdg-open "$BASE_URL/ui"
+```
 ```
 
 ## Migraciones y base de datos
@@ -331,7 +358,7 @@ docker compose down -v
 
 - Si la API no levanta, revisar logs de `api` y `postgres` y validar `.env`.
 - Si falla DB, revisar `DATABASE_DSN`, `docker compose ps` y el readiness de `/health`.
-- Si devuelve `401`, revisar `API_KEY` y el header `X-API-Key`.
+- Si devuelve `401`, revisar `API_KEY_READ` o `API_KEY_WRITE` según el endpoint y el header `X-API-Key`.
 - Si falla `qwen`, validar conectividad al endpoint configurado en `QWEN_NLP_ENDPOINT`.
 - Si falla `google`, revisar `GOOGLE_API_KEY`, endpoint y parámetros de retry/timeout.
 
