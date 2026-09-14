@@ -25,21 +25,21 @@ class PostgresAnamnesisRepository(AnamnesisRepositoryInterface):
     def __post_init__(self) -> None:
         self._session_factory = sessionmaker(bind=self.engine, expire_on_commit=False)
 
-    def _to_entity(self, model: AnamnesisEventModel) -> AnamnesisEvent:
+    def _to_entity(self, model: AnamnesisEventModel, audit_model: AnamnesisAuditModel | None = None) -> AnamnesisEvent:
         return AnamnesisEvent(
             process_id=model.process_id,
             patient_id=model.patient_id,
             doctor_id=model.doctor_id,
             anonymized_text=model.anonymized_text,
-            prompt_version="n/a",
-            labels_catalog_version="n/a",
-            provider="n/a",
-            provider_model=None,
+            prompt_version=audit_model.prompt_version if audit_model else "n/a",
+            labels_catalog_version=audit_model.labels_catalog_version if audit_model else "n/a",
+            provider=audit_model.provider if audit_model else "n/a",
+            provider_model=audit_model.provider_model if audit_model else None,
             labels_json=model.labels_json,
             status=model.status,
-            error_code=None,
-            error_message=None,
-            processing_ms=0,
+            error_code=audit_model.error_code if audit_model else None,
+            error_message=audit_model.error_message if audit_model else None,
+            processing_ms=audit_model.processing_ms if audit_model else 0,
             created_at=model.created_at,
         )
 
@@ -111,11 +111,17 @@ class PostgresAnamnesisRepository(AnamnesisRepositoryInterface):
         """Recupera un proceso por su identificador estable si existe."""
         try:
             with self._session_factory() as session:
-                statement = select(AnamnesisEventModel).where(AnamnesisEventModel.process_id == process_id)
-                result = session.execute(statement).scalar_one_or_none()
-                if result is None:
+                statement = (
+                    select(AnamnesisEventModel, AnamnesisAuditModel)
+                    .outerjoin(AnamnesisAuditModel, AnamnesisAuditModel.process_id == AnamnesisEventModel.process_id)
+                    .where(AnamnesisEventModel.process_id == process_id)
+                    .limit(1)
+                )
+                row = session.execute(statement).one_or_none()
+                if row is None:
                     return None
-                return self._to_entity(result)
+                event_model, audit_model = row
+                return self._to_entity(event_model, audit_model)
         except Exception as exc:
             raise PersistenceError(str(exc)) from exc
 

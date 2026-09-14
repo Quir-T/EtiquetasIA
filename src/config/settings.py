@@ -22,6 +22,18 @@ class Settings(BaseSettings):
     db_ssl_cert: str = Field(default="", alias="DB_SSL_CERT")
     db_ssl_key: str = Field(default="", alias="DB_SSL_KEY")
     prompt_version: str = Field(default="v1", alias="PROMPT_VERSION")
+    """ACTUALIZAR"""
+    labels_catalog_source: str = Field(default="external_db", alias="LABELS_CATALOG_SOURCE")
+    labels_catalog_external_dsn: str = Field(default="", alias="LABELS_CATALOG_EXTERNAL_DSN")
+    labels_catalog_external_query: str = Field(
+        default="SELECT name, description FROM labels_catalog",
+        alias="LABELS_CATALOG_EXTERNAL_QUERY",
+    )
+    
+    labels_catalog_snapshot_path: str = Field(
+        default="src/infrastructure/config/labels_catalog.json",
+        alias="LABELS_CATALOG_SNAPSHOT_PATH",
+    )
     nlp_provider: str = Field(default="google", alias="NLP_PROVIDER")
     anonymizer_module: str = Field(default="", alias="ANONYMIZER_MODULE")
     anonymizer_class: str = Field(default="", alias="ANONYMIZER_CLASS")
@@ -53,6 +65,14 @@ class Settings(BaseSettings):
         normalized = value.strip().lower()
         if normalized not in {"google", "qwen"}:
             raise ValueError("NLP_PROVIDER must be either 'google' or 'qwen'")
+        return normalized
+
+    @field_validator("labels_catalog_source")
+    @classmethod
+    def validate_labels_catalog_source(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized not in {"external_db", "json"}:
+            raise ValueError("LABELS_CATALOG_SOURCE must be either 'external_db' or 'json'")
         return normalized
 
 

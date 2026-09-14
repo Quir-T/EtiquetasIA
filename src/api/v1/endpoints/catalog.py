@@ -15,7 +15,7 @@ router = APIRouter(prefix="/catalog")
 
 
 @router.get("/labels", response_model=CatalogResponse, responses={401: {"model": ErrorResponse}, 500: {"model": ErrorResponse}})
-async def get_labels_catalog(
+def get_labels_catalog(
     _: None = Depends(require_api_key_read),
     service: LabelsCatalogService = Depends(get_labels_catalog_service),
 ) -> CatalogResponse:
